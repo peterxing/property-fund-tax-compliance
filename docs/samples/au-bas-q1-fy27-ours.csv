@@ -1,0 +1,69 @@
+reference,label,amount
+AU_BAS.TX1.EX_GST,GST-exclusive working amount,705000.00
+AU_BAS.TX1.GST,GST component,70500.00
+AU_BAS.TX1.IN_GST,GST-inclusive working amount,775500.00
+AU_BAS.TX1.G1,G1 contribution,775500.00
+AU_BAS.TX1.1A,1A contribution,70500.00
+AU_BAS.TX2.EX_GST,GST-exclusive working amount,88000.00
+AU_BAS.TX2.GST,GST component,8800.00
+AU_BAS.TX2.IN_GST,GST-inclusive working amount,96800.00
+AU_BAS.TX2.G1,G1 contribution,96800.00
+AU_BAS.TX2.1A,1A contribution,8800.00
+AU_BAS.TX3.EX_GST,GST-exclusive working amount,124000.00
+AU_BAS.TX3.GST,GST component,12400.00
+AU_BAS.TX3.IN_GST,GST-inclusive working amount,136400.00
+AU_BAS.TX3.G11,G11 contribution,136400.00
+AU_BAS.TX3.1B,1B contribution,12400.00
+AU_BAS.TX4.EX_GST,GST-exclusive working amount,52000.00
+AU_BAS.TX4.GST,GST component,5200.00
+AU_BAS.TX4.IN_GST,GST-inclusive working amount,57200.00
+AU_BAS.TX4.G11,G11 contribution,57200.00
+AU_BAS.TX4.1B,1B contribution,5200.00
+AU_BAS.TX5.EX_GST,GST-exclusive working amount,705000.00
+AU_BAS.TX5.GST,GST component,70500.00
+AU_BAS.TX5.IN_GST,GST-inclusive working amount,775500.00
+AU_BAS.TX5.G1,G1 contribution,775500.00
+AU_BAS.TX5.1A,1A contribution,70500.00
+AU_BAS.TX6.EX_GST,GST-exclusive working amount,88000.00
+AU_BAS.TX6.GST,GST component,8800.00
+AU_BAS.TX6.IN_GST,GST-inclusive working amount,96800.00
+AU_BAS.TX6.G1,G1 contribution,96800.00
+AU_BAS.TX6.1A,1A contribution,8800.00
+AU_BAS.TX7.EX_GST,GST-exclusive working amount,124000.00
+AU_BAS.TX7.GST,GST component,12400.00
+AU_BAS.TX7.IN_GST,GST-inclusive working amount,136400.00
+AU_BAS.TX7.G11,G11 contribution,136400.00
+AU_BAS.TX7.1B,1B contribution,12400.00
+AU_BAS.TX8.EX_GST,GST-exclusive working amount,52000.00
+AU_BAS.TX8.GST,GST component,5200.00
+AU_BAS.TX8.IN_GST,GST-inclusive working amount,57200.00
+AU_BAS.TX8.G10,G10 contribution,57200.00
+AU_BAS.TX8.1B,1B contribution,5200.00
+AU_BAS.TX9.EX_GST,GST-exclusive working amount,705000.00
+AU_BAS.TX9.GST,GST component,70500.00
+AU_BAS.TX9.IN_GST,GST-inclusive working amount,775500.00
+AU_BAS.TX9.G1,G1 contribution,775500.00
+AU_BAS.TX9.1A,1A contribution,70500.00
+AU_BAS.TX10.EX_GST,GST-exclusive working amount,88000.00
+AU_BAS.TX10.GST,GST component,8800.00
+AU_BAS.TX10.IN_GST,GST-inclusive working amount,96800.00
+AU_BAS.TX10.G1,G1 contribution,96800.00
+AU_BAS.TX10.1A,1A contribution,8800.00
+AU_BAS.TX11.EX_GST,GST-exclusive working amount,124000.00
+AU_BAS.TX11.GST,GST component,12400.00
+AU_BAS.TX11.IN_GST,GST-inclusive working amount,136400.00
+AU_BAS.TX11.G11,G11 contribution,136400.00
+AU_BAS.TX11.1B,1B contribution,12400.00
+AU_BAS.TX12.EX_GST,GST-exclusive working amount,52000.00
+AU_BAS.TX12.GST,GST component,5200.00
+AU_BAS.TX12.IN_GST,GST-inclusive working amount,57200.00
+AU_BAS.TX12.G11,G11 contribution,57200.00
+AU_BAS.TX12.1B,1B contribution,5200.00
+AU_BAS.G1,G1 Total sales,2616900.00
+AU_BAS.G2,G2 Export sales,0.00
+AU_BAS.G3,G3 Other GST-free sales,0.00
+AU_BAS.G10,G10 Capital purchases,57200.00
+AU_BAS.G11,G11 Non-capital purchases,523600.00
+AU_BAS.1A,1A GST on sales,237900.00
+AU_BAS.1B,1B GST on purchases,52800.00
+AU_BAS.NET,Net GST payable,185100.00

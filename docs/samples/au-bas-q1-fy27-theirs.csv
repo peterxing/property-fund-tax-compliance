@@ -1,0 +1,10 @@
+Description,Amount
+Computation extracted from our legacy system,
+G1  TOTAL  SALES,"$2,616,900.00"
+G2 Export sales,$0.00
+G3 Other GST-free sales,$0.00
+Client-specific adjustment,"$7,500.00"
+G10 Capital purchases,"$57,201.00"
+G11 Non-capital purchases,"$536,100.00"
+1A GST on sales,"($237,900.00)"
+Net GST payable,"$185,100.00"

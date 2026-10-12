@@ -1,0 +1,33 @@
+{
+  "name": "property-fund-tax-compliance",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Property fund tax compliance workspace for Australian AMIT/MIT trusts and Singapore S-REITs: trial balance to distribution, withholding, investor notices, cost base and sign-off. Static demo with fictional data.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node scripts/build.mjs --watch",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\"",
+    "test:engine": "node --disable-warning=ExperimentalWarning --test \"test/engine/**/*.test.ts\"",
+    "test:domain": "node --disable-warning=ExperimentalWarning --test \"test/domain/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "^5.2.0",
+    "pdfkit": "^0.17.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pdfkit": "^0.17.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}

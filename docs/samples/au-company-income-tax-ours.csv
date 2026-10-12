@@ -1,0 +1,15 @@
+reference,label,amount
+AUCO.PBT,Accounting profit / (loss) before tax,6637000.00
+AUCO.ADD.EXP_DEPRECIATION,Add back: Depreciation,75000.00
+AUCO.MANUAL.257809da-3a37-487e-aa94-6078eea52c82,Blackhole expenditure deduction top-up,-46000.00
+AUCO.TAXABLE_BEFORE_LOSSES,Taxable income before prior-year losses,6554047.91
+AUCO.SCHEDULE_DEDUCTIONS,Less tax-schedule deductions (Div 40 / Div 43 / borrowing / blackhole),-111952.09
+AUCO.TAXABLE_INCOME,Taxable income,6554047.91
+AUCO.TAX_PAYABLE,Tax payable,1638512.00
+AU.DIV40.af7ccbdf-ce6e-422b-85bb-647feb956f96.2026.OPENING,Display suite fitout opening adjustable value,378000.00
+AU.DIV40.af7ccbdf-ce6e-422b-85bb-647feb956f96.2026.DECLINE,Display suite fitout decline in value,42000.00
+AU.DIV40.af7ccbdf-ce6e-422b-85bb-647feb956f96.2026.DEDUCTION,Display suite fitout Division 40 deduction,42000.00
+AU.BORROWING.2025,Borrowing expense deduction (2025),69952.09
+AU.BORROWING.2026,Borrowing expense deduction (2026),69952.09
+AU.BORROWING.2027,Borrowing expense deduction (2027),69952.09
+AU.BORROWING.2028,Borrowing expense deduction (2028),70143.73
