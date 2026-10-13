@@ -1,4 +1,4 @@
-import { addMonths, addYears, type ISODate } from "../dates.ts";
+import { addMonths, addYears, endOfMonth, type ISODate } from "../dates.ts";
 import { allocate, type Cents } from "../money.ts";
 import type { RuleEntry } from "../rules.ts";
 import { ENGINE_DISCLAIMER_AU } from "../rules.ts";
@@ -195,8 +195,14 @@ function capitalGainAmount(components: AuCharacterMap): Cents {
   return (components.CAPITAL_GAIN_DISCOUNTABLE ?? 0) + (components.CAPITAL_GAIN_OTHER ?? 0);
 }
 
+/**
+ * AMMA statements are due within three months after the end of the income year. The period is reckoned from the day after the year end,
+ * so a year ending on the last day of a month finishes on the last day of the month three on (30 Sep -> 31 Dec, 28 Feb -> 31 May);
+ * any other year end uses the same day, clamped to the end of a shorter month.
+ */
 export function ammaDueDate(incomeYearEnd: ISODate): ISODate {
-  return addMonths(incomeYearEnd, 3);
+  const due = addMonths(incomeYearEnd, 3);
+  return incomeYearEnd === endOfMonth(incomeYearEnd) ? endOfMonth(due) : due;
 }
 
 export function ammaRevisionCutoff(incomeYearEnd: ISODate): ISODate {

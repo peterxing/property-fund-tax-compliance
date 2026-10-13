@@ -84,3 +84,15 @@ test("AMMA statement due dates and summary fields follow the AMIT guidance", () 
   assert.equal(statement.summary.assessableForeignIncome, 282_00);
   assert.equal(statement.components.costBaseExcessDecrease, 137_00);
 });
+
+test("ammaDueDate: three months after the year end, finishing on a month-end for a month-end year", () => {
+  assert.equal(ammaDueDate("2026-06-30"), "2026-09-30");
+  assert.equal(ammaDueDate("2026-09-30"), "2026-12-31");
+  assert.equal(ammaDueDate("2026-03-31"), "2026-06-30");
+  assert.equal(ammaDueDate("2026-12-31"), "2027-03-31");
+  assert.equal(ammaDueDate("2026-02-28"), "2026-05-31");
+  assert.equal(ammaDueDate("2024-02-29"), "2024-05-31");
+  assert.equal(ammaDueDate("2026-04-30"), "2026-07-31");
+  assert.equal(ammaDueDate("2026-06-15"), "2026-09-15", "a mid-month year end keeps its day");
+  assert.equal(ammaDueDate("2026-01-30"), "2026-04-30", "clamped to a shorter month");
+});
