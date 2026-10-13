@@ -21,6 +21,11 @@ Eight workspaces behind one header, with a **Working as** switch that changes wh
 | **Analytics** | Tax leakage, distribution mix, deadlines, a distribution scenario, and a Power BI workbook export |
 | **Access** | Users and fund access, governance mode per fund, the permissions matrix, and **Reset demo data** |
 
+![Distributions: a fund in review with its Sankey of tax characters, components, key figures and review tabs](docs/img/distributions.png)
+
+![Trial balance: book-to-tax reconciliation, tax adjustments, components against the distribution and account mapping](docs/img/trial-balance.png)
+
+![Analytics: tax leakage and distribution mix by fund, deadlines and a distribution scenario](docs/img/analytics.png)
 The workflow is **Preparing, In review, Signed off**. Governance per fund decides whether a tax agent approves, signs off or lodges. Signed-off funds are locked until reopened, and every step lands in the audit trail.
 
 Nine fictional funds ship with the demo: five Australian AMITs (Harbourline, Southbank, Wattle, Kurrajong, Coastline) and four Singapore S-REITs (Telok Ayer, Loyang, Meranti, Kallang), chosen so that each shows a different situation (an overdue AMMA, an under-remitted withholding variance, an unmapped account, a payout below the 90% condition, and so on).
