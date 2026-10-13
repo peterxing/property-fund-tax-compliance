@@ -1,0 +1,218 @@
+/* DocView: a DocModel shown like a printed statement. */
+
+.doc {
+  min-width: 0;
+  max-width: 880px;
+  padding: 28px 32px 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  color: var(--card-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+@media (max-width: 600px) {
+  .doc {
+    padding: 20px 16px 16px;
+  }
+}
+
+.doc__head {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--foreground);
+}
+.doc__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}
+.doc__subtitle {
+  margin: 2px 0 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.doc__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
+  gap: 10px 24px;
+  margin: 16px 0 0;
+}
+.doc__meta > * {
+  min-width: 0;
+}
+.doc__meta dt {
+  color: var(--muted-foreground);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.doc__meta dd {
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One shrinkable column. A bare display: grid makes an auto track that grows to its widest block (a wide table) and pushes the whole page sideways
+   on a phone; with minmax(0, 1fr) the track stays as wide as the document and each table scrolls inside its own TableScroll box. */
+.doc__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.doc__body > * {
+  min-width: 0;
+}
+.doc__heading {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.doc__heading--minor {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.doc__block-title {
+  margin: 0 0 6px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.doc__p {
+  margin: 0;
+  max-width: 72ch;
+}
+.doc__p--muted {
+  color: var(--muted-foreground);
+}
+.doc__p--note {
+  padding: 8px 12px;
+  border-left: 3px solid var(--info-border);
+  border-radius: 0 4px 4px 0;
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+
+.doc__kv {
+  margin: 0;
+  border-top: 1px solid var(--border-soft);
+}
+.doc__kv-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 24px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.doc__kv-row dt {
+  margin: 0;
+}
+.doc__kv-row dd {
+  margin: 0 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.doc__kv-row--emphasis dt,
+.doc__kv-row--emphasis dd {
+  font-weight: 600;
+}
+
+/* A long unbroken value (a reference number, a file name) wraps instead of overflowing. Table cells are left out on purpose: a table scrolls with whole words. */
+.doc__title,
+.doc__subtitle,
+.doc__meta dd,
+.doc__heading,
+.doc__block-title,
+.doc__p,
+.doc__kv-row dt,
+.doc__kv-row dd,
+.doc__list,
+.doc__footnotes li {
+  overflow-wrap: anywhere;
+}
+
+.doc__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.doc__table th,
+.doc__table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  vertical-align: top;
+}
+.doc__table thead th {
+  border-bottom: 1px solid var(--foreground);
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.doc__table tbody th {
+  font-weight: 400;
+}
+.doc__table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.doc__table tfoot th,
+.doc__table tfoot td {
+  border-top: 1px solid var(--foreground);
+  border-bottom: 0;
+  font-weight: 600;
+}
+.doc__table th:first-child,
+.doc__table td:first-child {
+  min-width: 8rem;
+  padding-left: 0;
+}
+.doc__table th:last-child,
+.doc__table td:last-child {
+  padding-right: 0;
+}
+
+.doc__list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.doc__list li + li {
+  margin-top: 4px;
+}
+
+.doc__footnotes {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+}
+.doc__footnotes-title {
+  margin: 0 0 4px;
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.doc__footnotes ol {
+  margin: 0;
+  padding-left: 1.4em;
+}
+.doc__footnotes li + li {
+  margin-top: 2px;
+}

@@ -7,8 +7,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const dist = path.join(root, "dist");
+const dist = process.env.PFC_OUT ? path.resolve(process.env.PFC_OUT) : path.join(root, "dist");
 const watch = process.argv.includes("--watch");
+const dev = watch || process.env.PFC_DEV === "1";
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 
 function gitSha() {
@@ -29,10 +30,11 @@ const options = {
   splitting: true,
   minify: !watch,
   sourcemap: watch ? "inline" : false,
-  target: ["es2022", "chrome110", "edge110", "firefox110", "safari16"],
+  // The design tokens are oklch() colours: Chrome/Edge 111, Firefox 113, Safari 15.4 or newer.
+  target: ["es2022", "chrome111", "edge111", "firefox113", "safari16"],
   jsx: "automatic",
   loader: { ".woff2": "file", ".woff": "file", ".svg": "file" },
-  define: { "process.env.NODE_ENV": watch ? '"development"' : '"production"', __BUILD_INFO__: JSON.stringify(buildInfo) },
+  define: { "process.env.NODE_ENV": dev ? '"development"' : '"production"', __DEV__: dev ? "true" : "false", __BUILD_INFO__: JSON.stringify(buildInfo) },
   metafile: true,
   logLevel: "info",
 };
@@ -42,6 +44,8 @@ function indexHtml(js, css) {
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'none'; worker-src 'none'; frame-src 'none'; media-src 'none'; manifest-src 'none'" />
+    <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Property fund tax compliance for Australian AMIT/MIT trusts and Singapore S-REITs. Demo with fictional data." />
     <meta name="color-scheme" content="light dark" />

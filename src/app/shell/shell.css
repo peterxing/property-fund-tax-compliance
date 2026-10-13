@@ -1,0 +1,538 @@
+/* App shell: header, fund rail, fund header, portfolio frame, footer, error pages. */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.app > .fund-layout,
+.app > .portfolio,
+.app > .error-page {
+  flex: 1 0 auto;
+}
+
+/* ---------------------------------------------------------------- header */
+.app-header {
+  /* The layout follows the header's own width (not the viewport), so it also holds when the header is shown inside a frame. */
+  container: app-header / inline-size;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.app-header__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "brand"
+    "nav"
+    "controls";
+  gap: 10px 24px;
+  align-items: center;
+  max-width: 1760px;
+  margin: 0 auto;
+  padding: 12px var(--page-pad);
+}
+.app-title {
+  grid-area: brand;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.app-nav {
+  grid-area: nav;
+  min-width: 0;
+}
+.app-nav__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-size: var(--text-nav);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.app-nav__link:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.app-nav__link[aria-current="page"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+.app-controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.app-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-control__label {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.app-control__select {
+  min-width: 210px;
+}
+
+@container app-header (min-width: 700px) {
+  .app-header__inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand controls"
+      "nav nav";
+  }
+  .app-controls {
+    justify-content: flex-end;
+  }
+}
+@container app-header (min-width: 1390px) {
+  .app-header__inner {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "brand nav"
+      "controls controls";
+  }
+  .app-controls {
+    justify-content: flex-start;
+  }
+  .app-title {
+    min-width: 270px;
+  }
+}
+
+/* ---------------------------------------------------------------- fund workspace layout */
+.fund-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.fund-rail {
+  min-width: 0;
+  padding: var(--space-5) var(--page-pad);
+  border-bottom: 1px solid var(--border);
+}
+.fund-main {
+  min-width: 0;
+  max-width: 1280px;
+  width: 100%;
+  padding: var(--space-5) var(--page-pad) var(--space-7);
+}
+.fund-main > * + * {
+  margin-top: var(--space-5);
+}
+.fund-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .fund-layout {
+    grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  }
+  .fund-rail {
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--control-border) transparent;
+    padding-right: var(--space-4);
+    border-bottom: 0;
+    border-right: 1px solid var(--border);
+  }
+}
+
+/* ---------------------------------------------------------------- fund rail */
+.fund-rail__group + .fund-rail__group {
+  margin-top: var(--space-5);
+}
+.fund-rail__group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.fund-rail__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 899.98px) {
+  .fund-rail__list {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
+.fund-rail__item {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px 10px 10px;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  color: var(--foreground);
+  text-decoration: none;
+}
+.fund-rail__item:hover {
+  background: var(--hover);
+}
+.fund-rail__item--selected,
+.fund-rail__item--selected:hover {
+  border-left-color: var(--primary);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+.fund-rail__name {
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.fund-rail__item--selected .fund-rail__name {
+  font-weight: 600;
+}
+.fund-rail__detail {
+  color: var(--muted-foreground);
+  font-size: var(--text-small);
+  line-height: 1.35;
+}
+.fund-rail__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+.fund-rail__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13.5px;
+}
+
+/* Below 900px the rail is a disclosure: a button showing the selected fund opens the grouped list, which stays folded away until then. From 900px
+   up the button is hidden and the list is always shown, so nothing outside the narrow query may hide .fund-rail__panel. */
+.fund-rail__toggle {
+  display: none;
+}
+.fund-rail__toggle-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.fund-rail__toggle-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 899.98px) {
+  .fund-rail {
+    padding-block: var(--space-3);
+  }
+  .fund-rail__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 48px;
+    padding: 6px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--foreground);
+    text-align: left;
+  }
+  .fund-rail__toggle:hover,
+  .fund-rail__toggle[aria-expanded="true"] {
+    background: var(--hover);
+  }
+  .fund-rail__toggle[aria-expanded="true"] .icon {
+    transform: rotate(180deg);
+  }
+  .fund-rail:not(.fund-rail--open) .fund-rail__panel {
+    display: none;
+  }
+  .fund-rail--open .fund-rail__panel {
+    margin-top: var(--space-4);
+  }
+}
+
+/* ---------------------------------------------------------------- fund header */
+.fund-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.fund-header__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+.fund-header__head {
+  flex: 1 1 26rem;
+  min-width: 0;
+}
+.fund-header__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.fund-header__name {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.fund-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 28px;
+  margin: 0;
+}
+.fund-fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  min-width: 0;
+}
+.fund-fact dt {
+  color: var(--muted-foreground);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fund-fact dd {
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.fund-chain__label {
+  margin: 0 0 6px;
+  color: var(--muted-foreground);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fund-chain__steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+}
+.fund-chain__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fund-chain__step > svg {
+  color: var(--muted-foreground);
+}
+.fund-chain__step--done > svg {
+  color: var(--success-fg);
+}
+.fund-chain__step > span {
+  color: var(--muted-foreground);
+}
+.fund-chain__queries a {
+  font-weight: 700;
+}
+.fund-actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 520px;
+}
+@media (min-width: 1000px) {
+  .fund-actions {
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+}
+.fund-action {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  max-width: 230px;
+}
+@media (min-width: 1000px) {
+  .fund-action {
+    justify-items: end;
+  }
+}
+.fund-action__reason {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.35;
+}
+@media (min-width: 1000px) {
+  .fund-action__reason {
+    text-align: right;
+  }
+}
+/* ---------------------------------------------------------------- portfolio frame */
+.portfolio {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--page-pad) var(--space-7);
+}
+.portfolio__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.portfolio__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.portfolio__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.portfolio__actions--stack {
+  display: grid;
+  justify-items: end;
+  max-width: 400px;
+  text-align: right;
+}
+.portfolio__note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-small);
+  line-height: 1.4;
+}
+.portfolio__filter {
+  margin-bottom: var(--space-4);
+}
+.portfolio__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- footer */
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px var(--space-5);
+  padding: var(--space-4) var(--page-pad) var(--space-5);
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: var(--text-small);
+  line-height: 1.45;
+}
+.app-footer p {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- error pages */
+.error-page {
+  display: grid;
+  place-items: center;
+  padding: var(--space-7) var(--page-pad);
+}
+.error-card {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  width: min(100%, 560px);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+.error-card--panel {
+  width: 100%;
+}
+.error-card__icon {
+  color: var(--danger-text);
+}
+.error-card__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.error-card__text {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.error-card__detail {
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.error-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

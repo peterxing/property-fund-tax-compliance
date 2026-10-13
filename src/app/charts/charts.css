@@ -1,0 +1,159 @@
+/* Charts: Sankey (SVG) and stacked bars (CSS grid). Colours come from the --viz-* tokens, so dark mode follows. */
+
+.sankey {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.sankey__svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+.sankey__empty,
+.sbars__empty {
+  margin: 0;
+  padding: var(--space-5) 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  text-align: center;
+}
+.sankey__link {
+  stroke: var(--viz-gross);
+  stroke-opacity: 0.42;
+}
+.sankey__link--net {
+  stroke: var(--viz-net);
+}
+.sankey__link--withheld {
+  stroke: var(--viz-withheld);
+}
+.sankey__link--unallocated {
+  stroke: var(--viz-unallocated);
+}
+.sankey__node {
+  fill: var(--viz-gross);
+}
+.sankey__node--source {
+  fill: var(--viz-node);
+}
+.sankey__node--net {
+  fill: var(--viz-net);
+}
+.sankey__node--withheld {
+  fill: var(--viz-withheld);
+}
+.sankey__node--unallocated {
+  fill: var(--viz-unallocated);
+}
+.sankey__label {
+  fill: var(--foreground);
+  /* SankeyChart sets --sankey-label-size on the svg when it has to step the type down so the labels fit. */
+  font-size: var(--sankey-label-size, 12.5px);
+}
+.sankey__label-name {
+  font-weight: 600;
+}
+.sankey__label-value {
+  fill: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- stacked bars */
+.sbars {
+  margin: 0;
+}
+.sbars__plot {
+  display: grid;
+  grid-template-columns: minmax(96px, 30%) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: 6px;
+  align-items: center;
+}
+.sbars__label {
+  grid-column: 1;
+  font-size: 12.5px;
+  line-height: 1.25;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.sbars__track {
+  position: relative;
+  z-index: 1;
+  grid-column: 2;
+  display: flex;
+  height: 22px;
+}
+.sbars__seg {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+}
+.sbars__grid {
+  position: relative;
+  grid-column: 2;
+  align-self: stretch;
+  pointer-events: none;
+}
+.sbars__line {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 0;
+  border-left: 1px solid var(--viz-grid);
+}
+.sbars__axis {
+  position: relative;
+  grid-column: 2;
+  height: 20px;
+  border-top: 1px solid var(--muted-foreground);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.sbars__tick {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.sbars__tick:first-child {
+  transform: none;
+}
+.sbars__tick:last-child {
+  transform: translateX(-100%);
+}
+.sbars__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+.sbars__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sbars__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+@media (forced-colors: active) {
+  .sbars__seg,
+  .sbars__swatch,
+  .sankey__node {
+    forced-color-adjust: none;
+  }
+  .sankey__label,
+  .sankey__label-value {
+    fill: CanvasText;
+  }
+}
