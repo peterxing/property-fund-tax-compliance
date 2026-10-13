@@ -1,0 +1,159 @@
+/* Cost base & CGT workspace. Everything here is scoped by the .cb-* names; colours, spacing and type come from the design tokens. */
+
+/* ---- tables that run edge to edge in their panel ---- */
+.cb-asat {
+  margin: 0;
+  padding: 12px 16px 0;
+  font-size: var(--text-table);
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+.dt.cb-table caption {
+  padding: 4px 16px 8px;
+}
+.cb-table th:first-child,
+.cb-table td:first-child {
+  padding-left: 16px;
+}
+.cb-table th:last-child,
+.cb-table td:last-child {
+  padding-right: 16px;
+}
+.cb-name {
+  display: grid;
+  gap: 1px;
+  min-width: 10rem;
+}
+.cb-nowrap {
+  white-space: nowrap;
+}
+
+/* ---- gains: a loss says so in words as well as with the minus sign and the colour ---- */
+.cb-gain {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0 6px;
+}
+.cb-gain--loss {
+  color: var(--danger-text);
+}
+.cb-gain__kind {
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+.cb-gain:not(.cb-gain--loss) .cb-gain__kind {
+  color: var(--muted-foreground);
+}
+
+/* ---- the investor choice in the properties header ---- */
+.cb-investor {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.cb-investor__label {
+  white-space: nowrap;
+}
+.cb-investor__select {
+  min-width: 15rem;
+}
+.cb-investor__select .input {
+  min-height: 28px;
+  padding-block: 2px;
+  font-size: var(--text-table);
+}
+
+/* ---- CGT summary and deferred tax ---- */
+.cb-summary {
+  display: grid;
+  max-width: 34rem;
+  margin: 0;
+  padding: 12px 16px 4px;
+  font-size: var(--text-nav);
+}
+.cb-summary__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cb-summary__row:last-child {
+  border-bottom: 0;
+}
+.cb-summary dt {
+  color: var(--muted-foreground);
+}
+.cb-summary dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.cb-summary__row--emphasis dt,
+.cb-summary__row--emphasis dd {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.cb-deferred {
+  max-width: 34rem;
+  margin: 0;
+  padding: 12px 16px 16px;
+}
+.cb-deferred__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+  font-weight: 600;
+}
+.cb-deferred__amount {
+  font-variant-numeric: tabular-nums;
+}
+.cb-deferred__note {
+  margin: 4px 0 0;
+  font-size: var(--text-table);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.cb-note {
+  max-width: 80ch;
+  margin: 0;
+  padding: 12px 16px 16px;
+  font-size: var(--text-table);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* ---- unit cost base ---- */
+.cb-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+  padding: 12px 16px;
+}
+.cb-fact dt {
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.cb-fact dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cb-footnote {
+  max-width: 92ch;
+  margin: 0;
+  padding: 10px 16px 14px;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}

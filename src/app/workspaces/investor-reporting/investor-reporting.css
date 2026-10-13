@@ -1,0 +1,350 @@
+/* Investor reporting workspace. Everything here is scoped by the .ir-* names; colours, spacing and type come from the design tokens. */
+
+/* ---- notice picker: a card per notice over a native radio group, so arrow keys and screen readers behave as they should ---- */
+.ir-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ir-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr));
+  gap: var(--space-3);
+}
+.ir-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  cursor: pointer;
+}
+.ir-notice:hover {
+  background: var(--hover);
+}
+.ir-notice--selected,
+.ir-notice--selected:hover {
+  border-color: var(--primary);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.ir-notice:has(:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.ir-notice__input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+}
+.ir-notice__input:focus-visible {
+  outline: none;
+}
+.ir-notice__text {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
+}
+.ir-notice__label {
+  font-weight: 600;
+  line-height: 1.3;
+}
+.ir-notice__paid,
+.ir-notice__status {
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+.ir-notice__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- the line under a notice: what state it is in, the publish action and the PDF ---- */
+.ir-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+}
+.ir-bar--first {
+  margin-top: 0;
+}
+.ir-bar__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding-block: 6px;
+  font-size: var(--text-table);
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+.ir-bar__status--locked {
+  color: var(--foreground);
+}
+.ir-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.ir-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.ir-reason {
+  margin: 0;
+  max-width: 30ch;
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+.ir-doc {
+  margin-top: var(--space-4);
+}
+/* The shared doc body's single grid track grows to its widest table and pushes the page sideways on a phone. */
+.ir-doc .doc__body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---- tables that run edge to edge in their panel ---- */
+.ir-pad {
+  padding: 12px 16px;
+}
+.dt.ir-table caption {
+  padding: 12px 16px 8px;
+}
+.ir-table th:first-child,
+.ir-table td:first-child {
+  padding-left: 16px;
+}
+.ir-table th:last-child,
+.ir-table td:last-child {
+  padding-right: 16px;
+}
+.ir-holder {
+  display: grid;
+  gap: 1px;
+  min-width: 10rem;
+}
+.ir-diff {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+}
+.ir-net {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0 6px;
+}
+.ir-net__kind {
+  font-size: var(--text-small);
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.dt tfoot > tr.ir-gap > * {
+  border-top: 1px solid var(--border-soft);
+  background: transparent;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.ir-footnote {
+  max-width: 92ch;
+  margin: 0;
+  padding: 10px 16px 14px;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.ir-nowrap {
+  white-space: nowrap;
+}
+
+/* ---- annual investment income report ---- */
+.ir-items {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ir-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 10px;
+}
+.ir-item__icon {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+}
+.ir-item--done .ir-item__icon {
+  color: var(--success-fg);
+}
+.ir-item__text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.ir-item__detail {
+  color: var(--muted-foreground);
+}
+.ir-dues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space-6);
+  margin: var(--space-4) 0 0;
+}
+.ir-dues > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+.ir-dues dt {
+  color: var(--muted-foreground);
+}
+.ir-dues dd {
+  margin: 0;
+  font-weight: 600;
+}
+.ir-note {
+  max-width: 80ch;
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-table);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* ---- record lodgment ---- */
+.ir-lodgment {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-soft);
+}
+.ir-lodgment__title {
+  margin: 0 0 var(--space-3);
+}
+.ir-lodged {
+  display: grid;
+  gap: 2px;
+}
+.ir-lodged p {
+  margin: 0;
+}
+.ir-lodged__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.ir-lodged__summary svg {
+  flex: none;
+  color: var(--success-fg);
+}
+.ir-lodged__by {
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+/* A record on a fund that was reopened after it was lodged: still a fact, no longer the position, so it reads quiet with a warning mark. */
+.ir-lodged--reopened .ir-lodged__summary {
+  color: var(--muted-foreground);
+}
+.ir-lodged--reopened .ir-lodged__summary svg {
+  color: var(--warn-fg);
+}
+.ir-reopened {
+  max-width: 80ch;
+  margin-top: var(--space-3);
+}
+.ir-replace {
+  margin-top: var(--space-3);
+}
+.ir-replace-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+}
+.ir-lodge-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  max-width: 760px;
+}
+.ir-lodge-form--replace {
+  margin-top: var(--space-4);
+}
+.ir-lodge-form__submit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-top: 24px;
+}
+.ir-lodge-form__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+@media (max-width: 760px) {
+  .ir-lodge-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ir-lodge-form__submit {
+    padding-top: 0;
+  }
+}
+
+/* ---- Singapore withholding tax filing (s45G) ---- */
+.ir-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+}
+.ir-fact dt {
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.ir-fact dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ir-fact--overdue dd {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  color: var(--danger-text);
+}
+
+/* high-contrast mode replaces our colours: keep the chosen notice visible */
+@media (forced-colors: active) {
+  .ir-notice--selected {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

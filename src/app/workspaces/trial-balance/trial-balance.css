@@ -1,0 +1,356 @@
+/* Trial balance workspace. Every rule is scoped to a tb- class; colours, spacing and type come from the tokens. */
+
+/* ---- header: checks and lock note ---- */
+.tb-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.tb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tb-chip {
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  font-weight: 600;
+}
+.tb-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+
+/* ---- book to tax beside the adjustments, stacked when there is no room for two ---- */
+.tb-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+.tb-table caption {
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  font-size: var(--text-small);
+}
+
+/* tables run edge to edge in their panel, so the outer cells carry the panel's 16px */
+.tb-table th:first-child,
+.tb-table td:first-child {
+  padding-left: var(--space-4);
+}
+.tb-table th:last-child,
+.tb-table td:last-child {
+  padding-right: var(--space-4);
+}
+.tb-table .tb-subtotal > * {
+  font-weight: 600;
+}
+.tb-table .tb-extra > * {
+  color: var(--muted-foreground);
+}
+
+/* ---- tax adjustments ---- */
+.tb-adjust {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tb-adjust__item {
+  min-width: 0;
+}
+.tb-adjust__item .field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 14rem);
+  grid-template-areas:
+    "label control"
+    "hint control";
+  align-items: center;
+  gap: 2px var(--space-4);
+}
+.tb-adjust__item .field__label {
+  grid-area: label;
+}
+.tb-adjust__item .field__hint {
+  grid-area: hint;
+  margin: 0;
+}
+.tb-adjust__item .money {
+  grid-area: control;
+}
+.tb-adjust__fixed {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--space-4);
+  margin: 0;
+}
+.tb-adjust__label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.tb-adjust__help {
+  grid-column: 1;
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.tb-adjust__amount {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: var(--text-table);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 40rem) {
+  .tb-adjust__item .field {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "hint"
+      "control";
+  }
+}
+
+/* ---- distribution components ---- */
+.tb-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border-soft);
+}
+.tb-hint {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+
+/* ---- accounts and tax mapping ---- */
+.tb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+}
+.tb-toolbar .field {
+  gap: 4px;
+}
+.tb-toolbar .field__label {
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.tb-toolbar .money {
+  width: 9rem;
+}
+.tb-toolbar .select {
+  min-width: 11rem;
+}
+.tb-toolbar__jump {
+  margin-left: auto;
+}
+
+/* the table scrolls inside its own box so the header and the total stay in view */
+.tb-map-scroll {
+  max-height: min(70vh, 44rem);
+  overflow: auto;
+  /* keeps a row that is scrolled or focused into view clear of the sticky header and total */
+  scroll-padding-block: 2.75rem;
+}
+.tb-map {
+  min-width: 52rem;
+}
+.tb-map thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card);
+}
+.tb-map tfoot th,
+.tb-map tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+.tb-account {
+  min-width: 15rem;
+}
+.tb-account__no {
+  display: inline-block;
+  min-width: 3.25em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.tb-category {
+  min-width: 17rem;
+}
+.tb-category .select {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+}
+.tb-pct {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.tb-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tb-map tr.tb-row--flag > td,
+.tb-map tr.tb-row--flag > th {
+  background: color-mix(in oklab, var(--warn-bg) 55%, var(--card));
+}
+.tb-map tr.tb-row--unmapped > th {
+  box-shadow: inset 3px 0 0 var(--warn-border);
+}
+.tb-note {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.tb-empty {
+  padding: var(--space-5) var(--space-4);
+}
+
+/* ---- import dialog ---- */
+.tb-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.tb-import__file {
+  display: block;
+  width: 100%;
+  font-size: 14px;
+}
+.tb-import__file::file-selector-button {
+  min-height: 28px;
+  margin-right: var(--space-3);
+  padding: 0 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tb-import__file::file-selector-button:hover {
+  background: var(--hover);
+}
+.tb-import__paste {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+  min-height: 9rem;
+}
+.tb-import__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.tb-import__summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+}
+.tb-import__summary--ok .icon {
+  color: var(--success-fg);
+}
+.tb-import__summary--bad .icon {
+  color: var(--danger-text);
+}
+.tb-import__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-table);
+}
+.tb-import__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.tb-import__list .icon {
+  margin-top: 2px;
+}
+.tb-import__list--ok .icon {
+  color: var(--success-fg);
+}
+.tb-import__list--warn .icon {
+  color: var(--warn-fg);
+}
+.tb-import__list--bad .icon {
+  color: var(--danger-text);
+}
+.tb-import__heading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.tb-import__issues {
+  max-height: 13rem;
+  margin: 0;
+  padding: 0 0 0 1.25rem;
+  overflow: auto;
+  font-size: var(--text-table);
+}
+.tb-import__issues li {
+  padding: 2px 0;
+}
+.tb-import__more {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+
+@media (forced-colors: active) {
+  .tb-flag,
+  .tb-chip {
+    border-color: CanvasText;
+  }
+}

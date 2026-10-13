@@ -1,0 +1,159 @@
+/* Access workspace. Everything here is scoped by the access-* names. */
+
+/* The disclaimer leads the page, close under the heading. */
+.access-disclaimer {
+  margin: calc(var(--space-2) * -1) 0 calc(var(--space-2) * -1);
+  max-width: 80ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* Why the page is read-only for this persona; the disabled governance selects point at it. */
+.access-readonly {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius);
+  color: var(--info-fg);
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+.access-readonly > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Visually hidden text in the far columns would otherwise sit outside the scroller's clip and widen the page on narrow screens. */
+.access-table {
+  position: relative;
+}
+
+/* Users */
+.access-user__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.access-user {
+  min-width: 200px;
+}
+.access-funds {
+  min-width: 220px;
+  max-width: 480px;
+  line-height: 1.5;
+}
+.access-action {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* Governance by fund */
+.access-fund {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.access-governance {
+  min-width: 250px;
+}
+.access-governance__label {
+  display: block;
+  font-weight: 500;
+}
+.access-governance__reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.access-governance__reason > svg {
+  flex: none;
+}
+.access-select {
+  display: block;
+  max-width: 300px;
+}
+.access-select .select__control {
+  width: 100%;
+}
+
+/* Permissions by role */
+.access-subtitle {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.access-matrix th.access-matrix__role,
+.access-matrix td.access-matrix__cell {
+  text-align: center;
+}
+.access-matrix__cell > svg {
+  vertical-align: middle;
+}
+.access-yes {
+  color: var(--success-fg);
+}
+.access-no {
+  color: var(--muted-foreground);
+}
+.access-footnote {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* Demo data */
+.access-reset {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.access-note {
+  margin: 0;
+  max-width: 80ch;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* The "Change funds" dialog */
+.access-fieldset {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.access-fieldset__all {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+.access-fieldset__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.access-fieldset__list .chip {
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+.access-fieldset__count {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}

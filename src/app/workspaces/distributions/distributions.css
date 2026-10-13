@@ -1,0 +1,130 @@
+/* Distributions workspace. Colour, spacing and type come from the shared tokens; every class here starts with dist-. */
+
+/* ---- panel header note ("Signed off — reopen to edit") ---- */
+.dist-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- chart and narrative ---- */
+.dist-sankey {
+  margin-bottom: var(--space-2);
+}
+/* Between about 620 and 700px the chart's left label room is a few pixels short of the longest label; the panel padding is free, so let
+   the text use it rather than being cut off at the chart's edge. */
+.dist-sankey.sankey,
+.dist-sankey .sankey__svg {
+  overflow: visible;
+}
+.dist-narrative {
+  margin: var(--space-3) 0 var(--space-4);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ---- components table ---- */
+/* The scroller runs edge to edge inside the panel so the row rules and the total band reach its borders; the first and last cells keep
+   the panel's own padding, so the text still lines up with the chart sentence above and the key figures below. */
+.dist-table-scroll {
+  position: relative; /* clips the screen-reader-only "Nil" text instead of letting it widen the page */
+  max-width: none;
+  margin-inline: calc(-1 * var(--space-4));
+}
+.dist-table {
+  min-width: 720px;
+}
+/* Column headings stay on one line while there is room. In a narrow panel, or when a fourth column (units not on the register) is
+   shown, they wrap instead so the figures stay in view rather than scrolling away. */
+.dist-table--crowded.dt thead th {
+  white-space: normal;
+}
+@media (max-width: 1360px) {
+  .dist-table.dt thead th {
+    white-space: normal;
+  }
+}
+.dist-table th:first-child,
+.dist-table td:first-child {
+  padding-left: var(--space-4);
+}
+.dist-table th:last-child,
+.dist-table td:last-child {
+  padding-right: var(--space-4);
+}
+.dist-table tbody th {
+  min-width: 220px;
+  max-width: 420px;
+}
+.dist-table .dt__title {
+  font-weight: 500;
+}
+.dist-table .dist-table__empty {
+  color: var(--muted-foreground);
+}
+.dist-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 2px;
+  vertical-align: -1px;
+  background: var(--viz-gross);
+  forced-color-adjust: none;
+}
+.dist-key--net {
+  background: var(--viz-net);
+}
+.dist-key--withheld {
+  background: var(--viz-withheld);
+}
+.dist-key--unallocated {
+  background: var(--viz-unallocated);
+}
+
+/* ---- key figures ---- */
+.dist-kpis {
+  margin-top: var(--space-5);
+}
+.dist-unit {
+  font-size: var(--text-small);
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* ---- distribution inputs ---- */
+.dist-inputs__intro {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.dist-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--space-4) var(--space-5);
+  align-items: start;
+}
+.dist-inputs__result {
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dist-inputs__result-label {
+  margin-right: 6px;
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 640px) {
+  .dist-unit {
+    display: block;
+    margin: 2px 0 0;
+  }
+}

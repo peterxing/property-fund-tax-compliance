@@ -1,0 +1,354 @@
+/* The review tabs under the distribution: Withholding, Statements, Checks, Queries, Audit trail and Rules. Colours, spacing and the shared
+   .dt / .tag / .field / .btn styles come from the shell; everything here is prefixed rv-. */
+
+.rv-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.rv-heading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.rv-summary,
+.rv-muted {
+  margin: 0;
+  font-size: var(--text-table);
+  color: var(--muted-foreground);
+}
+.rv-note {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.rv-note--lock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The number on the Checks and Queries tabs: the shell's accent pill, red when there are exceptions. */
+.tabs__badge:has(> .rv-badge[data-tone="danger"]) {
+  background: var(--danger);
+  color: var(--danger-foreground);
+}
+
+/* Tables run a little wider than the panel text, as the distribution table above them does, and scroll sideways when the window is narrow. */
+.rv-review .rv-table-scroll {
+  max-width: none;
+  margin-inline: calc(-1 * var(--space-3));
+}
+
+/* ---------------------------------------------------------------- withholding */
+.rv-withholding {
+  min-width: 62rem;
+}
+.rv-toggle-cell {
+  width: 1%;
+  padding-right: 0;
+}
+.rv-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+}
+.rv-toggle:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.rv-status {
+  display: block;
+}
+.rv-action {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+.rv-cell-input {
+  width: 9.5rem;
+  margin-left: auto;
+}
+.rv-withholding tfoot td {
+  vertical-align: top;
+}
+.rv-register {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.rv-register--warn {
+  font-weight: 500;
+  color: var(--warn-fg);
+}
+
+.rv-withholding .rv-detail > td {
+  padding: 0;
+  background: var(--muted);
+}
+.rv-detail__inner {
+  padding: var(--space-2) var(--space-3) var(--space-3) 52px;
+}
+.rv-components {
+  max-width: 46rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.rv-recon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 36rem;
+}
+.rv-recon__list {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.rv-recon__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--text-table);
+}
+.rv-recon__row:first-child {
+  border-top: 0;
+}
+.rv-recon__row dt {
+  color: var(--muted-foreground);
+}
+.rv-recon__row dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.rv-remitted__control {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.rv-remitted__input {
+  flex: 1 1 12rem;
+  max-width: 18rem;
+}
+
+/* ---------------------------------------------------------------- statements */
+.rv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.rv-toolbar__field {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+.rv-toolbar__field .select {
+  display: block;
+}
+
+/* ---------------------------------------------------------------- checks */
+.rv-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+}
+.rv-check .tag {
+  flex: none;
+  margin-top: 1px;
+  font-size: var(--text-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.rv-check__body {
+  min-width: 0;
+}
+.rv-check__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.rv-check__detail {
+  margin: 2px 0 0;
+  font-size: var(--text-table);
+  color: var(--muted-foreground);
+}
+
+/* ---------------------------------------------------------------- queries */
+.rv-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 40rem;
+  padding: var(--space-4);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.rv-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.rv-threads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.rv-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.rv-thread__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rv-thread__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.rv-thread__meta {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.rv-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-message {
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--border);
+}
+.rv-message__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0 0 2px;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.rv-message__by {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.rv-message__text {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rv-thread__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.rv-reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 40rem;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ---------------------------------------------------------------- audit trail */
+.rv-audit {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-audit__row {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.rv-audit__row:first-child {
+  border-top: 0;
+}
+.rv-audit__time {
+  font-size: var(--text-table);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.rv-audit__line {
+  margin: 0;
+  font-size: 14px;
+}
+.rv-audit__action {
+  font-weight: 600;
+}
+.rv-audit__detail {
+  margin: 2px 0 0;
+  font-size: var(--text-table);
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .rv-audit__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------- rules */
+.rv-rules {
+  min-width: 40rem;
+}
+.rv-rules caption {
+  padding-inline: var(--space-3);
+}
+.rv-rules th,
+.rv-rules td {
+  vertical-align: top;
+}
+.rv-rules tbody th {
+  width: 22%;
+}

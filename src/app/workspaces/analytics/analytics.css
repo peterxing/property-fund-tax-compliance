@@ -1,0 +1,86 @@
+/* Analytics workspace. Everything here is scoped by the analytics-*, deadline-* and scenario-* names. */
+
+/* The headline finding sits above its chart, like the sentence that opens a report section. */
+.analytics-headline {
+  margin: 0 0 var(--space-4);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.analytics-chart {
+  margin-bottom: var(--space-5);
+}
+
+/* Tables sit inside the padded panel, so the first and last columns line up with the panel's text edge; rows are as compact as the reference's. */
+.analytics-table th,
+.analytics-table td {
+  padding-block: 7px;
+}
+.analytics-table th:first-child,
+.analytics-table td:first-child {
+  padding-left: 0;
+}
+.analytics-table th:last-child,
+.analytics-table td:last-child {
+  padding-right: 0;
+}
+.analytics-date {
+  white-space: nowrap;
+}
+
+.analytics-empty {
+  margin: 0;
+  padding: var(--space-4) 0;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+/* The page action: the button with its two helper lines under it, right-aligned in the heading row. */
+.analytics-workbook {
+  max-width: 440px;
+  gap: var(--space-2);
+}
+
+/* Deadline status: an icon for overdue so colour is not the only signal. */
+.deadline-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.deadline-status--overdue {
+  color: var(--error-fg);
+}
+
+/* Distribution scenario */
+.scenario-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4) var(--space-5);
+  align-items: start;
+  margin-bottom: var(--space-4);
+}
+.scenario-field {
+  max-width: 420px;
+}
+/* Only carries the arrow-key handler for the payout box; it must not change the field's layout. */
+.scenario-payout {
+  display: contents;
+}
+.scenario-changed {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.analytics-note {
+  margin: var(--space-3) 0 0;
+  max-width: 80ch;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 640px) {
+  .analytics-workbook {
+    justify-items: start;
+    text-align: left;
+  }
+}

@@ -1,0 +1,118 @@
+/* Bulk review workspace. Everything here is scoped by the .bulk-* names. */
+
+/* The three bulk buttons sit in the page heading row; they wrap under the title on a narrow screen. */
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.bulk {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+/* Selection summary: one calm line above the table, read out as the ticks change. */
+.bulk__summary {
+  margin: 0 0 var(--space-2);
+  min-height: 20px;
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+/* The result of a bulk run; the wrapper is always present so a screen reader announces the text when it appears. */
+.bulk__result:not(:empty) {
+  margin-bottom: var(--space-3);
+}
+.bulk-result__lines {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.bulk__note {
+  margin: var(--space-3) 0 0;
+  max-width: 80ch;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.bulk-card {
+  overflow: hidden;
+}
+
+.bulk-table th,
+.bulk-table td {
+  padding-block: 9px;
+}
+.bulk-table .bulk-select {
+  width: 52px;
+  padding-inline: var(--space-4) 0;
+}
+.bulk-table thead .bulk-select {
+  line-height: 0;
+}
+.bulk-table tbody tr.bulk-row--selected > * {
+  background: var(--info-bg);
+}
+
+/* The fund cell stays a real table cell (a grid here would break the row borders); whole-pixel line heights keep the rows crisp. */
+.bulk-fund {
+  min-width: 220px;
+}
+.bulk-fund__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  font-weight: 600;
+}
+.bulk-fund__link {
+  color: var(--foreground);
+  text-decoration: none;
+}
+.bulk-fund__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.bulk-fund__governance {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-small);
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--muted-foreground);
+}
+
+.bulk-queries {
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+}
+.bulk-next--action {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.bulk-next--blocked {
+  color: var(--error-fg);
+}
+.bulk-next__icon {
+  flex: none;
+}
+
+@media (max-width: 720px) {
+  .bulk-actions {
+    justify-content: flex-start;
+  }
+}
