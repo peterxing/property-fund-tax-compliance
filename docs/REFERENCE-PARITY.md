@@ -25,6 +25,10 @@ This page explains how the two were compared and lists every deliberate differen
 
 Both files use the same layout: Matches the reference; Where the law or the engine wins; Not in the reference; Rounding; Rates; Rules tab: citation check; Found by tests and review; Known gaps. Product-wide limits are in [LIMITATIONS.md](LIMITATIONS.md).
 
+## Beyond the reference
+
+Parity covers the eight workspaces the reference app has. The nine platform workspaces (GST & BAS, Property taxes, Assets & allowances, Compare, Compliance calendar, Risk register, Calculators, Rules & sources, Data) and the governance additions (calculation versions, a reason to reopen, manual adjustments, the prior-year column) have no counterpart there, so there is nothing to compare them with. They are described in [PRODUCT.md](PRODUCT.md#beyond-the-reference-platform-workspaces) and checked instead by independent tests under `test/verify/` that recompute their figures from the cited rules (for example every BAS label and GST F5 box from the ledger) rather than from this build's output.
+
 ## Differences at a glance
 
 Each row is a deliberate difference. AU is Australia and SG is Singapore; the evidence for each row is in the matching file under "Market documents".

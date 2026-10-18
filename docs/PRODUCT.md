@@ -75,3 +75,37 @@ Destination colours in Sankey/columns: Australian residents/Paid gross = chart-1
 Leakage bars: Final withholding amber, Recoverable teal, Trustee tax red.
 Layout: max content width fluid; left rail ~300px; panels are cards with 1px border, header strip uppercase 12px/600 tracking .08em; tables are dense (13px) with right-aligned tabular numbers (`font-variant-numeric: tabular-nums`).
 Accessibility: skip link ("Skip to fund workspace"), landmarks, labelled form controls, visible focus, tabs per WAI-ARIA, tables with real `th`, charts have a text narrative and a data table, colour is never the only signal, respects `prefers-reduced-motion`. Min contrast AA.
+
+## Beyond the reference: platform workspaces
+
+These workspaces have no counterpart in the reference prototype. They bring in the rest of the engine and the platform functions a tax team needs around the distribution.
+
+### GST & BAS (`#/gst`, fund)
+Quarter selector (`?period=` period end); summary (net GST payable or refundable, due date with its basis, status); the return as a table (AU BAS labels G1, G2, G3, G10, G11, 1A, 1B in whole dollars; SG GST F5 boxes to the cent), each row expandable to the ledger lines behind it; the ledger for the period (or all periods) with human code labels, add/edit/delete, CSV import (locked periods refused) and export; checks; lodgment record (reference and date, entered by whoever records lodgment under the fund's governance; others see who does; locks the period; unlock needs `reopen` and a reason); SG: IRAS Audit File download; AU: BAS worksheet CSV. Entries inside any lodged period are locked.
+
+### Property taxes (`#/property-taxes`, fund)
+Tabs `annual` (AU land tax per property for the states the engine models, SG property tax on the annual value; rate basis in plain words; totals exclude anything not modelled), `duties` (transfer duty or BSD/ABSD on each acquisition, with deadlines), `profiles` (editable tax profile per property; the land tax treatment of a trust is an assumption shown on the page). Payments can be recorded per property and tax, which marks the deadline done.
+
+### Assets & allowances (`#/assets`, fund)
+The fixed asset register grouped by property (Division 40 plant, Division 43 capital works, borrowing costs; SG capital allowances), this year's deduction per asset with its basis, a ten-year schedule, PDF and CSV; "Register vs trial balance" compares the register's totals with the trial balance adjustments, and "Use register totals in the trial balance" copies them while the fund is Preparing.
+
+### Compare (`#/compare`, fund)
+Choose a statement (distribution components, withholding by holder, book-to-tax, working papers, investor reporting, cost base, GST/BAS, property taxes, assets), download our figures, load theirs (CSV, Excel paste or the practice file), check the detected columns, then read the line-by-line result (match, within tolerance, differs with hints, only in theirs, only in ours), remap lines, export the comparison or raise it as a query. Nothing leaves the browser.
+
+### Compliance calendar (`#/calendar`, portfolio)
+Agenda (overdue first, then the next 90 days) or one month at a time (`?month=`), filters, links to the workspace that handles each obligation, and an iCalendar (.ics) download of the open obligations.
+
+### Risk register (`#/risks`, portfolio)
+Every open exception and note from distributions, trial balances, GST, property taxes and the asset register, grouped by fund, filterable, exportable to CSV, each with a link to fix it.
+
+### Calculators (`#/calculators`, portfolio)
+Sixteen engine calculators (AU and SG), deep-linkable with `?calc=`, each showing the rules it used and their sources.
+
+### Rules & sources (`#/rules`, portfolio)
+Every rule in the engine: title, market and domain, effective dates, primary sources, confidence and notes; search, filters and deep links (`?id=`).
+
+### Data (`#/data`, portfolio)
+Tabs `funds` (create, edit, delete with typed confirmation), `holders` and `properties` (edit while Preparing; CSV import with templates; read-only for anyone who cannot edit the fund), `backup` (download and restore everything in this browser; Head of Tax only). Every list shows only the funds the persona can see.
+
+### Governance (across workspaces)
+Submitting, signing off and reopening a fund each save a calculation version (inputs hash plus key results); the Distributions **Versions** tab lists them and compares any two or a version with the current figures, and anyone who edits, reviews or signs off the fund can save one by hand. Reopening needs a reason of 5 to 500 characters, asked for in a dialog. The Trial balance has manual tax adjustments with reasons and a prior-year column in the book-to-tax reconciliation.

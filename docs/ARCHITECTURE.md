@@ -14,7 +14,7 @@ Pure functions over integer minor units (`Cents`) and ISO dates. Rules carry the
 
 * **Australia:** AMIT trust components and member attribution, AMIT cost base net amounts, AMMA statements, MIT withholding (fund payment, NCMI, clean building MIT income, interest) and the AIIR and withholding-report due dates, CGT and discount.
 * **Singapore:** REIT tax transparency and trustee tax, investor classes and withholding (s45G), Form UT dates, distribution allocation to unitholders.
-* Further calculators (transfer duty, GST, company tax, land tax, capital allowances) are kept, tested and **not surfaced in this UI**.
+* **Both markets, beyond distributions:** GST (SG GST F5, IRAS Audit File; AU BAS, GST codes, margin scheme, going concern), land tax and transfer/landholder duty (the AU states listed in `docs/rules/au-duties.md`), SG property tax and stamp duties (BSD, ABSD, SSD, lease duty), Division 40 and 43, borrowing costs, SG capital allowances, company and corporate income tax, withholding tax, badges of trade. All of it is surfaced: in the GST & BAS, Property taxes and Assets workspaces, and in Calculators.
 
 ## Domain (`src/domain`)
 
@@ -29,13 +29,19 @@ Pure functions over integer minor units (`Cents`) and ISO dates. Rules carry the
 | `market.ts` | The `MarketModule` interface every market implements |
 | `au/`, `sg/` | The two markets: distribution calculation and withholding per holder, checks, trial-balance derivation and book-to-tax, notices and statements, cost base, deadlines, leakage, mix, scenario, rules |
 | `shared/sankey.ts` | The Sankey model shared by both markets |
+| `gst/`, `ptax/`, `assets/`, `governance/`, `entities/` | **Feature modules** with their own saved records. Each has `types.ts` (records, actions, view models), `schema.ts` (exact-shape validation of its saved records, run by `core/schema.ts`), `seed.ts`, `reducer.ts` (actions prefixed `gst-`, `ptax-`, `asset-`, `gov-`, `entity-`, routed by `features.ts`), `providers.ts` and `index.ts` (selectors) |
+| `compare/`, `portfolio/` | Pure features without saved records: matching another system's figures; the compliance calendar (with .ics), the risk register and the rules register |
+| `providers.ts` | `FEATURE_PROVIDERS`: each feature contributes **deadlines** (calendar), **risks** (risk register) and **compare sources** (Compare) without those pages knowing about it |
+| `core/schemaKit.ts` | The rule toolkit (`shape`, `list`, `amount`, `isoDate` ...) shared by the core schema and the feature schemas |
 
 Design rules:
 
-* **Everything is derived.** Stored state is small (inputs, holders, trial balance, approvals, queries, audit). Components, withholding, checks, deadlines and statements are recomputed by pure selectors, so an edit anywhere updates every workspace.
+* **Everything is derived.** Stored state is small (inputs, holders, trial balance, approvals, queries, audit, the GST ledger and lodgments, property tax profiles and payments, the asset register, versions and manual adjustments). Components, withholding, checks, deadlines and statements are recomputed by pure selectors, so an edit anywhere updates every workspace.
 * **Rules live in the engine.** A market module adapts engine output to view models and never carries a rate or a due-date rule of its own. Where the reference prototype and the engine disagree, the difference is recorded in `docs/REFERENCE-PARITY.md`.
 * **Actions never throw for rule violations.** They return `{ ok: false, reason }` with a message the UI shows as is.
 * **`now` is injected** (`Ctx.now`), so deadline status is deterministic in tests.
+* **Saved state is versioned and validated.** `STATE_VERSION` is 2; a save from another version, or one that fails the exact-shape checks, is ignored and the seed loads instead. Backups (the Data page) go through the same validation.
+* **A feature plugs in without editing the pages that list everything.** It adds records to `AppData`, a schema module, a reducer prefix and a provider; the calendar, risk register and Compare pick it up.
 
 ## App (`src/app`)
 

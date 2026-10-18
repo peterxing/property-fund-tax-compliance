@@ -12,13 +12,20 @@ Read this before relying on anything the demo shows.
 
 * **No server.** Data lives in your browser's `localStorage`. Clearing site data, using another browser or device, or private browsing resets or isolates it. Nothing is shared between people.
 * **"Working as" is not authentication.** It switches the persona the screens behave as, to show role-based workflow (preparer, reviewer, tax agent, Head of Tax, view only). Anyone who can open the page can switch persona, and anyone can edit the stored data with browser tools. The Access page says so.
-* **The audit trail is a UI log**, not tamper-evident evidence.
-* **No ATO or IRAS connection.** *Record lodgment* stores the receipt or acknowledgement reference you type; nothing is submitted. Notices, statements and returns are working papers, not filed documents.
+* **The audit trail and the calculation versions are records kept in the browser**, not tamper-evident evidence. A version's input hash shows whether the inputs changed since it was saved; it does not prove who changed them.
+* **Backups contain everything** (every fund, holder, ledger line and user), which is why only the Head of Tax persona can download or restore one. A restore replaces all data in this browser after validating it.
+* Saved data from an older version of the app is not migrated: after an upgrade that changes the data format, the demo starts again from its seed data.
+* **No ATO or IRAS connection.** *Record lodgment* (returns, AIIR, BAS, GST F5) and *Record payment* (land tax, property tax, duties) store the reference you type; nothing is submitted or paid. Notices, statements, returns, the BAS worksheet and the IRAS Audit File are working files, not filed documents.
 
 ## Scope
 
 * Two markets: Australian AMITs and MITs (AUD) and Singapore S-REITs (SGD). Other regimes, entities and currencies are out of scope.
-* The engine also contains calculators that the reference app does not have (transfer duty, GST, company tax, land tax, capital allowances and others). They remain tested and available in `src/engine` but are **not surfaced in this UI**.
+* **GST and BAS**: quarterly periods only; one GST ledger per fund (no GST groups, branches or partial-period registration). The seeded ledgers are fictional and sized to each fund's trial balance. BAS labels are worked out in whole dollars from the ledger; PAYG instalments, PAYG withholding, FBT and fuel tax credits are not on the BAS here. The IRAS Audit File uses the section and field layout the engine assembled from published descriptions of the IAF (the IRAS field specification itself was not available), carries demo UEN and GST registration numbers, and has not been validated by IRAS; compare it with an IAF from your accounting system first.
+* **Land tax and duties**: only the Australian states and the years the engine models (see **Rules & sources** and `docs/rules/au-duties.md`); anything else is shown as **Not modelled** and left out of totals, never as zero. The land tax treatment of a trust depends on facts the app does not hold (for example whether a unit trust is a fixed trust for a State's purposes); the assumption is shown on the page and can be changed per property. Singapore property tax uses the annual value you enter; it does not estimate annual values.
+* **Assets and allowances**: the seeded asset registers are fictional and built so that their deductions equal the seeded trial balance adjustments. Balancing adjustments on disposal, low-value and software pools, and Singapore renovation and refurbishment (s14Q) deductions are outside the register unless the engine models them for the asset kind chosen.
+* **Calculators** are indicative: each shows the engine rules it used and their sources, and says so when a case is not modelled.
+* **Compare** matches lines by reference and by label similarity; check every match it proposes, especially "within tolerance" and label-only matches. Files you load are read in the browser and never uploaded.
+* **Compliance calendar** due dates are the ones the engine and the features model for the funds in the app; they do not include every obligation a fund has (for example payroll, FBT or council rates).
 * The unrealised CGT deferred-tax view covers four investor types; it is an indicator, not a provision calculation.
 * Trial balance import accepts CSV only (`account,name,current,prior[,category]`), up to 2,000 rows and 1 MB.
 

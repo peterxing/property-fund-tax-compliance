@@ -1,6 +1,6 @@
 # Property Fund Tax Compliance
 
-A browser-only demo of how a property fund's tax team could prepare, review and sign off distributions for **Australian AMITs/MITs (AUD)** and **Singapore S-REITs (SGD)**, from trial balance to investor notices.
+A browser-only tax compliance workspace for property funds: **Australian AMITs/MITs (AUD)** and **Singapore S-REITs (SGD)**. It covers the trial balance and the distribution, withholding and investor notices, plus GST/BAS, land and property tax, duties, capital allowances, returns, deadlines and risks.
 
 **Live demo:** <https://peterxing.github.io/property-fund-tax-compliance/>
 
@@ -8,7 +8,9 @@ A browser-only demo of how a property fund's tax team could prepare, review and 
 
 ## What it does
 
-Eight workspaces behind one header, with a **Working as** switch that changes what each role can do (preparer, reviewer, tax agent, Head of Tax, view only) and an **All / Australia / Singapore** filter:
+Seventeen workspaces in two groups behind one header, with a **Working as** switch that changes what each role can do (preparer, reviewer, tax agent, Head of Tax, view only) and an **All / Australia / Singapore** filter.
+
+**Fund workspaces** (for the fund chosen in the left rail):
 
 | Workspace | What you can do |
 |---|---|
@@ -17,8 +19,22 @@ Eight workspaces behind one header, with a **Working as** switch that changes wh
 | **Tax returns** | Readiness checklist, record a lodgment reference, working-papers document and PDF (AMIT return and schedule, or Form UT) |
 | **Investor reporting** | AU fund payment notices, AIIR and withholding report; SG distribution tax notice and s45G withholding filing |
 | **Cost base & CGT** | Unrealised CGT and deferred tax by investor type (AU), unit cost base after AMIT cost base net amounts or returns of capital |
+| **GST & BAS** | The GST ledger, quarterly BAS (AU) and GST F5 (SG) built from it, checks, lodgment records, CSV import and export, and the IRAS Audit File (SG) |
+| **Property taxes** | Land tax (AU states the engine models) and property tax (SG) per property, duties paid on acquisition (transfer duty; BSD and ABSD), payments, and editable tax profiles |
+| **Assets & allowances** | The fixed asset register behind Division 40 and 43 deductions (AU) and capital allowances (SG), with schedules and a check against the trial balance adjustments |
+| **Compare** | Put this platform's figures next to another system's export for the same fund (CSV or an Excel paste), with matching, tolerances and an exportable result |
+
+**Portfolio workspaces** (across the funds you can see):
+
+| Workspace | What you can do |
+|---|---|
 | **Bulk review** | Submit, approve or sign off many funds at once, with reasons for every fund skipped |
 | **Analytics** | Tax leakage, distribution mix, deadlines, a distribution scenario, and a Power BI workbook export |
+| **Compliance calendar** | Every filing and payment deadline (distributions, GST/BAS, land and property tax, duties, returns) by month or as an agenda, with an iCalendar (.ics) download |
+| **Risk register** | Every open exception and note across funds, from distributions, trial balances, GST, property taxes and the asset register, filterable and exportable |
+| **Calculators** | Stand-alone calculators on the same engine: transfer and landholder duty, land tax, CGT and foreign-resident withholding, MIT withholding, Division 40 and 43, company tax, borrowing costs (AU); stamp duties, property tax, withholding tax, corporate income tax, GST tests, badges of trade, capital allowances (SG) |
+| **Rules & sources** | Every rule the engine applies, with effective dates, primary sources and a confidence grade |
+| **Data** | Create, edit and delete funds; maintain holders and properties; CSV imports with templates; back up and restore everything in this browser |
 | **Access** | Users and fund access, governance mode per fund, the permissions matrix, and **Reset demo data** |
 
 ![Distributions: a fund in review with its Sankey of tax characters, components, key figures and review tabs](docs/img/distributions.png)
@@ -26,7 +42,8 @@ Eight workspaces behind one header, with a **Working as** switch that changes wh
 ![Trial balance: book-to-tax reconciliation, tax adjustments, components against the distribution and account mapping](docs/img/trial-balance.png)
 
 ![Analytics: tax leakage and distribution mix by fund, deadlines and a distribution scenario](docs/img/analytics.png)
-The workflow is **Preparing, In review, Signed off**. Governance per fund decides whether a tax agent approves, signs off or lodges. Signed-off funds are locked until reopened, and every step lands in the audit trail.
+
+The workflow is **Preparing, In review, Signed off**. Governance per fund decides whether a tax agent approves, signs off or lodges. Signed-off funds are locked until reopened (reopening needs a reason), every step lands in the audit trail, and each submission and sign-off saves an immutable calculation version that can be compared with the current figures.
 
 Nine fictional funds ship with the demo: five Australian AMITs (Harbourline, Southbank, Wattle, Kurrajong, Coastline) and four Singapore S-REITs (Telok Ayer, Loyang, Meranti, Kallang), chosen so that each shows a different situation (an overdue AMMA, an under-remitted withholding variance, an unmapped account, a payout below the 90% condition, and so on).
 
@@ -49,7 +66,7 @@ Node 22 or later. There is no server, database or configuration. Your edits live
 ## How it is built
 
 * `src/engine`: the calculation core. Pure TypeScript in integer cents, cited to legislation, with its own tests: trust components, MIT withholding and due dates (AU); REIT tax transparency, withholding and Form UT (SG).
-* `src/domain`: the product logic. Types, seed data, workflow and permission rules, per-market modules (`au/`, `sg/`) that turn engine output into view models, and a store. No DOM or React.
+* `src/domain`: the product logic. Types, seed data, workflow and permission rules, per-market modules (`au/`, `sg/`) that turn engine output into view models, feature modules (`gst/`, `ptax/`, `assets/`, `governance/`, `entities/`, `compare/`, `portfolio/`), and a store. No DOM or React.
 * `src/app`: React 19 UI (esbuild, no UI kit): shell and design system, one folder per workspace, and CSV, XLSX and PDF exports that load on demand.
 * `test`: the engine suite, domain tests including golden tests against the reference figures, helper tests, and headless-DOM UI tests.
 
