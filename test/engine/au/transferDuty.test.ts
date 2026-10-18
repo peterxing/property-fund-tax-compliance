@@ -150,6 +150,19 @@ test("QLD transfer duty and AFAD follow the published QRO schedule", () => {
   assert.equal(afad.totalDuty, D(99_275));
 });
 
+test("pre-AFAD non-foreign Queensland transfer duty remains modelled", () => {
+  const actual = computeTransferDuty({
+    state: "QLD",
+    contractDate: "2016-02-15",
+    dutiableValue: D(679_055_795),
+    propertyKind: "NON_RESIDENTIAL",
+    purchaser: { kind: "TRUST" },
+  });
+  assert.equal(actual.baseDuty, D(39_026_233.5));
+  assert.equal(actual.foreignSurchargeDuty, 0);
+  assert.equal(actual.totalDuty, D(39_026_233.5));
+});
+
 test("Landholder duty matches published NSW, VIC and QLD examples", () => {
   const nsw = computeLandholderDuty({
     state: "NSW",

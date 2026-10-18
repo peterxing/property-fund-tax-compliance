@@ -511,8 +511,8 @@ export function computeTransferDuty(input: ComputeTransferDutyInput): ComputeTra
   const findings: Finding[] = [];
   const residentialDutiableValue = resolveResidentialComponent({ ...input, dutiableValue }, findings);
   const base = computeBaseTransferDuty(input.state, input.contractDate, dutiableValue, residentialDutiableValue);
-  const foreignRate = surchargeRate(input.state, input.contractDate);
   const surchargeBase = proportionalShare(residentialDutiableValue, foreignShareBps(input.purchaser));
+  const foreignRate = surchargeBase > 0 ? surchargeRate(input.state, input.contractDate) : undefined;
   const foreignSurchargeDuty = foreignRate && surchargeBase > 0 ? mulBps(surchargeBase, foreignRate.rateBps) : 0;
   const totalDuty = base.duty + foreignSurchargeDuty;
   const notes = [
