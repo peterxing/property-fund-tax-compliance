@@ -213,7 +213,7 @@ describe("a fund reopened after it was lodged", () => {
   });
 
   it("keeps the record, shows it as history with the warning, and gives the person who may lodge a switched-off Replace record", () => {
-    const data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle" }]]);
+    const data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }]]);
     assert.equal(fundOf(data, "wattle").status, "Preparing");
     assert.deepEqual(returnView(data, "wattle", ctxFor(data)).lodgment, { fundId: "wattle", kind: "return", reference: "Receipt 418806221407", date: "2026-10-09", actor: "A. Moreno" });
     assert.deepEqual(sectionFor(data, "wattle", "a-moreno"), {
@@ -228,7 +228,7 @@ describe("a fund reopened after it was lodged", () => {
   });
 
   it("says the same to people who may not lodge, without a button they could never use", () => {
-    const data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle" }]]);
+    const data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }]]);
     for (const user of ["l-brennan", "r-okafor", "m-castillo"]) {
       assert.deepEqual(
         sectionFor(data, "wattle", user),
@@ -253,7 +253,7 @@ describe("a fund reopened after it was lodged", () => {
 
   it("holds while the fund waits for review, and ends when it is signed off again", () => {
     let data = run(freshData(), [
-      ["a-moreno", { type: "reopen", fundId: "wattle" }],
+      ["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }],
       ["r-okafor", { type: "submit", fundId: "wattle" }],
     ]);
     assert.equal(fundOf(data, "wattle").status, "In review");
@@ -278,7 +278,7 @@ describe("a fund reopened after it was lodged", () => {
   it("words a Singapore filing as filed, with an amended Form UT", () => {
     const data = run(freshData(), [
       ["a-moreno", { type: "record-lodgment", fundId: "loyang", kind: "form-ut", reference: "Acknowledgement 2027-418806", date: "2026-10-12" }],
-      ["a-moreno", { type: "reopen", fundId: "loyang" }],
+      ["a-moreno", { type: "reopen", fundId: "loyang", reason: "Correcting signed-off inputs" }],
     ]);
     assert.deepEqual(sectionFor(data, "loyang", "a-moreno"), {
       kind: "reopened",
@@ -291,7 +291,7 @@ describe("a fund reopened after it was lodged", () => {
   });
 
   it("is refused by the action, which is why nothing can replace the record meanwhile", () => {
-    const data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle" }]]);
+    const data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }]]);
     const ctx = ctxFor(data, "a-moreno");
     assert.equal(workflowView(data, "wattle", ctx).can.lodge, false);
     const result = applyAction(data, { type: "record-lodgment", fundId: "wattle", kind: "return", reference: "Receipt 418806229999", date: "2026-10-12" }, ctx);

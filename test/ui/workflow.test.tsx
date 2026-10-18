@@ -138,6 +138,11 @@ async function press(app: MountedApp, before: AppData, step: Step): Promise<AppD
   const hash = app.hash();
 
   await app.click(pressed);
+  if (step.action.type === "reopen") {
+    const reason = app.byLabel("Reason") as HTMLTextAreaElement;
+    await app.type(reason, step.action.reason);
+    await app.click(app.$(".dialog__footer .btn--primary"));
+  }
 
   assert.deepEqual(app.store.getState().data, expected, `${where}: the data`);
   assert.deepEqual(
@@ -339,9 +344,9 @@ describe("pressing a workflow button", () => {
       userId: "a-moreno",
       fundId: "harbourline",
       label: "Reopen",
-      action: { type: "reopen", fundId: "harbourline" },
+      action: { type: "reopen", fundId: "harbourline", reason: "Correcting signed-off inputs" },
       announcement: "Harbourline Office Trust reopened for editing.",
-      audit: { action: "Reopened", detail: "Sign-off removed; components unlocked" },
+      audit: { action: "Reopened", detail: "Sign-off removed; components unlocked. Reason: Correcting signed-off inputs" },
       status: "Preparing",
       steps: ["Reviewer pending", "Tax agent pending", "Sign-off pending · Head of Tax"],
       then: [SUBMIT],
@@ -399,9 +404,9 @@ describe("pressing a workflow button", () => {
       userId: "a-moreno",
       fundId,
       label: "Reopen",
-      action: { type: "reopen", fundId },
+      action: { type: "reopen", fundId, reason: "Correcting signed-off inputs" },
       announcement: `${name} reopened for editing.`,
-      audit: { action: "Reopened", detail: "Sign-off removed; components unlocked" },
+      audit: { action: "Reopened", detail: "Sign-off removed; components unlocked. Reason: Correcting signed-off inputs" },
       status: "Preparing",
       steps: ["Reviewer pending", "Tax agent pending", "Sign-off pending · Head of Tax"],
       then: [SUBMIT],

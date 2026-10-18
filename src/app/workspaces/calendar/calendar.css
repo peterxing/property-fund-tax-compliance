@@ -1,0 +1,82 @@
+.portfolio-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+.portfolio-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.calendar-agenda,
+.risk-table,
+.rules-list {
+  font-size: var(--text-small);
+}
+.calendar-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.calendar-month-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.calendar-grid {
+  min-width: 780px;
+  table-layout: fixed;
+}
+.calendar-grid td {
+  vertical-align: top;
+  width: 14.285%;
+}
+.calendar-grid th {
+  width: 14.285%;
+}
+.calendar-day {
+  min-height: 112px;
+}
+.calendar-day__number {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.calendar-day__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.calendar-item {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+.calendar-item a {
+  font-weight: 600;
+}
+.calendar-item__meta {
+  color: var(--muted-foreground);
+}
+.calendar-empty-cell {
+  background: var(--muted);
+}
+@media (max-width: 760px) {
+  .calendar-month-view {
+    display: none;
+  }
+}

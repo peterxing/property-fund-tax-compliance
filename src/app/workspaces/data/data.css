@@ -1,0 +1,37 @@
+.data-note {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: var(--muted-foreground);
+}
+
+.data-sub {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.data-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.9rem;
+}
+
+.data-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 25rem), 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.data-split .panel {
+  margin: 0;
+}

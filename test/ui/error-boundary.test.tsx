@@ -17,6 +17,7 @@ import { accessibleName } from "./dom.ts";
 import { expectAuditsClean, expectFundHeader, openFund } from "./expect.ts";
 import { MemoryStorage, expectConsole, importFresh, mountApp, peekStore, render, storage, type MountedApp, type Rendered } from "./harness.tsx";
 import { expectedRail, hashFor, oracle, type Oracle } from "./oracle.ts";
+import { ROUTES } from "./routes.ts";
 import { expectNone } from "./same.ts";
 import { fundHeaderState, navLinks, personaSelect, railState, titleFor } from "./shell.ts";
 
@@ -382,7 +383,7 @@ describe("in the real shell", () => {
       assert.equal(app.byRole("heading", { level: 1 }).textContent, "Property Fund Tax Compliance");
       assert.equal(app.$$("main").length, 1);
       assert.ok(app.byRole("banner") && app.byRole("contentinfo"), "the header and the footer are still there");
-      assert.equal(navLinks(app).length, 8);
+      assert.equal(navLinks(app).length, ROUTES.length);
       assert.equal(app.byRole("link", "Trial balance").getAttribute("aria-current"), "page");
       assert.equal(personaSelect(app).options.length, 8);
       expectClean(applyAllowances(auditPage(app.container), [...ALLOWANCES, UNTITLED]).unexpected, `the crashed workspace (${app.hash()})`);

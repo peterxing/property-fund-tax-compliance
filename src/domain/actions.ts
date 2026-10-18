@@ -32,6 +32,7 @@
 //  * Edit payloads are validated: amounts are whole cents (safe integers) and may not be negative, units are whole numbers of zero or more
 //    (units on issue at least 1), update-inputs only accepts keys of the fund's own market, update-remitted accepts null (not remitted).
 //  * Audit wording follows the reference app and the seeded trail ("Approved — reviewer", "Account 4000 mapped", "Query answered", ...).
+import { applyFeatureAction } from "./features.ts";
 import type {
   Action,
   ActionResult,
@@ -59,6 +60,7 @@ import { auFundPayment, auNoticeAmounts, sgNoticeAmounts } from "./core/notices.
 import { MAX_ACCOUNT, MAX_ARRAY, MAX_IMPORT_ROWS, MAX_NAME, MAX_STRING, isAmount, isISODate, isSafeInt } from "./core/validate.ts";
 import { NO_ACCESS, STEP_TO, bulkBlock, levelOfStep, stepBlock } from "./core/workflow.ts";
 import type { Step } from "./core/workflow.ts";
+import { buildCalcVersion } from "./governance/versions.ts";
 
 const fail = (reason: string): ActionResult => ({ ok: false, reason });
 const succeed = (data: AppData): ActionResult => ({ ok: true, data });
@@ -102,11 +104,19 @@ const STEP_AUDIT: Record<"submit" | "return" | "sign-off" | "reopen", { action: 
   reopen: { action: "Reopened", detail: "Sign-off removed; components unlocked" },
 };
 
-function runStep(data: AppData, fundId: FundId, step: Step, ctx: Ctx): ActionResult {
+function reopenReason(value: unknown): string | null {
+  const reason = typeof value === "string" ? value.trim() : "";
+  if (reason.length < 5 || reason.length > 500) return null;
+  return reason;
+}
+
+function runStep(data: AppData, fundId: FundId, step: Step, ctx: Ctx, reason?: string): ActionResult {
   const fund = findFund(data, fundId);
   if (!fund) return fail(FUND_NOT_FOUND);
   const block = stepBlock(data, fund, step, ctx.user);
   if (block) return fail(block.reason);
+  const cleanReason = step === "reopen" ? reopenReason(reason) : null;
+  if (step === "reopen" && cleanReason === null) return fail("Enter a reopen reason between 5 and 500 characters");
 
   const level = levelOfStep(step);
   let approvals = data.approvals;
@@ -118,10 +128,17 @@ function runStep(data: AppData, fundId: FundId, step: Step, ctx: Ctx): ActionRes
   } else {
     const text = STEP_AUDIT[step as keyof typeof STEP_AUDIT];
     if (step === "return" || step === "reopen") approvals = data.approvals.filter((a) => a.fundId !== fund.id);
-    draft = { fundId: fund.id, ...text };
+    draft = step === "reopen" ? { fundId: fund.id, action: text.action, detail: `${text.detail}. Reason: ${cleanReason}` } : { fundId: fund.id, ...text };
   }
   const status = STEP_TO[step];
   const funds = fund.status === status ? data.funds : replaceFund(data, { ...fund, status } as Fund);
+  const changed = { ...data, funds, approvals };
+  if (step === "submit" || step === "sign-off" || step === "reopen") {
+    const afterFund = (fund.status === status ? fund : ({ ...fund, status } as Fund));
+    const label = step === "submit" ? "Submitted for review" : step === "sign-off" ? "Signed off" : "Reopened";
+    const version = buildCalcVersion(changed, afterFund, ctx, step, label, cleanReason);
+    return withAudit(data, ctx, [draft], { funds, approvals, versions: [...data.versions, version] });
+  }
   return withAudit(data, ctx, [draft], { funds, approvals });
 }
 
@@ -459,7 +476,7 @@ export function applyAction(data: AppData, action: Action, ctx: Ctx): ActionResu
     case "return":
     case "sign-off":
     case "reopen":
-      return runStep(data, action.fundId, action.type, ctx);
+      return runStep(data, action.fundId, action.type, ctx, action.type === "reopen" ? action.reason : undefined);
     case "approve":
       if (action.level !== "review" && action.level !== "agent") return fail("Unknown approval level");
       return runStep(data, action.fundId, action.level === "review" ? "approve-review" : "approve-agent", ctx);
@@ -494,7 +511,7 @@ export function applyAction(data: AppData, action: Action, ctx: Ctx): ActionResu
     case "set-user-funds":
       return setUserFunds(data, action, ctx);
     default:
-      return fail("Unknown action");
+      return applyFeatureAction(data, action, ctx) ?? fail("Unknown action");
   }
 }
 
@@ -534,7 +551,9 @@ export function applyBulk(data: AppData, kind: BulkKind, fundIds: FundId[], ctx:
     const single: Action =
       kind === "approve-review"
         ? { type: "approve", fundId, level: ctx.user.role === "tax-agent" ? "agent" : "review" }
-        : { type: kind, fundId };
+        : kind === "sign-off"
+          ? { type: kind, fundId }
+          : { type: kind, fundId };
     const applied = applyAction(snapshot, single, ctx);
     if (applied.ok) {
       current = applied.data;

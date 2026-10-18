@@ -87,6 +87,9 @@ export const GALLERY_CSS = `/* Design gallery (development builds only). */
   border-radius: 6px;
   overflow: hidden;
 }
+.gallery__frame .app-nav__panel {
+  position: static;
+}
 .gallery__frame .fund-rail {
   position: static;
   max-height: none;

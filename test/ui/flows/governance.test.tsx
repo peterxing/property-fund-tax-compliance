@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { mountApp, type MountedApp } from "../harness.tsx";
-import { allByLabel } from "../dom.ts";
+import { allByLabel, allByRole } from "../dom.ts";
 import { expectNone } from "../same.ts";
 import { announced } from "../shell.ts";
 import {
@@ -268,5 +268,38 @@ describe("the Access page changes how a fund is governed, and the fund header fo
       reason: "You don't have permission to change governance",
     });
     assert.equal(fundOf(app, "harbourline").governance, "no-agent");
+  });
+});
+
+describe("reopening a signed-off fund asks why", () => {
+  it("explains a missing reason beside the box, keeps the fund signed off, and Cancel changes nothing", async () => {
+    const app = await mountApp({ user: "a-moreno", hash: "#/?fund=harbourline" });
+    const audit = dataOf(app).audit.length;
+    await app.click(app.byRole("button", "Reopen"));
+    const dialog = app.byRole("dialog", "Reopen signed-off fund");
+    const reason = app.byLabel("Reason") as HTMLTextAreaElement;
+    assert.equal(reason.getAttribute("aria-required"), "true", "the reason is marked as required");
+
+    await app.type(reason, "fix");
+    await app.click(app.$(".dialog__footer .btn--primary"));
+    assert.equal(fundOf(app, "harbourline").status, "Signed off", "a three-letter reason reopens nothing");
+    assert.equal(dialog.querySelector(".field__error")?.textContent, "Enter a reason between 5 and 500 characters.");
+    assert.equal(reason.getAttribute("aria-invalid"), "true");
+    assert.deepEqual(app.$$(".toasts .toast"), [], "the problem is shown beside the box, not in a toast");
+
+    await app.type(reason, "fix the rent accrual");
+    assert.equal(dialog.querySelector(".field__error"), null, "typing clears the message");
+    await app.click(allByRole(dialog, "button", { name: "Cancel" })[0]!);
+    expectNone(app.queryByRole("dialog"), "Cancel closes the dialog");
+    assert.equal(fundOf(app, "harbourline").status, "Signed off");
+    assert.equal(dataOf(app).audit.length, audit, "and records nothing");
+
+    await app.click(app.byRole("button", "Reopen"));
+    assert.equal((app.byLabel("Reason") as HTMLTextAreaElement).value, "", "Cancel discarded the draft, so it cannot follow you to another fund");
+    await app.type(app.byLabel("Reason"), "fix the rent accrual");
+    await app.click(app.$(".dialog__footer .btn--primary"));
+    assert.equal(fundOf(app, "harbourline").status, "Preparing");
+    assert.ok(dataOf(app).audit.slice(audit).some((entry) => entry.action === "Reopened"), "the reopening is in the audit trail");
+    assert.match(JSON.stringify(dataOf(app).versions.filter((version) => version.fundId === "harbourline").at(-1)), /fix the rent accrual/);
   });
 });

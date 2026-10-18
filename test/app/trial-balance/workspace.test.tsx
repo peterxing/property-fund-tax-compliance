@@ -213,6 +213,42 @@ describe("the tax adjustments", () => {
     await app.press(box, "Escape");
     assert.equal(box.value, saved);
   });
+
+  it("adds and removes a manual adjustment as a preparer", async () => {
+    const app = await mountApp({ hash: COASTLINE, user: "r-okafor" });
+    const before = bridgeResult(app);
+    await app.click(app.byRole("button", "Add manual adjustment"));
+    await app.type(app.byLabel("Label"), "Manager true-up");
+    await app.select(app.byLabel("Component"), "Australian income — other");
+    await app.focus(app.byLabel("Amount"));
+    await app.type(app.byLabel("Amount"), "123,000");
+    await app.blur(app.byLabel("Amount"));
+    await app.type(app.byLabel("Reason"), "True-up from manager workpaper");
+    await app.click(app.byRole("button", "Save adjustment"));
+
+    assert.match(announced(app), /Manual adjustment added: Manager true-up\./);
+    assert.match(flatText(app.byRole("region", "Tax adjustments")), /Manager true-up/);
+    assert.match(flatText(app.byRole("region", "Tax adjustments")), /True-up from manager workpaper/);
+    assert.notEqual(bridgeResult(app), before);
+    assert.ok(viewOf(app, "coastline").bookToTax.rows.some((row) => row.label === "Manual adjustment: Manager true-up"));
+
+    const confirm = window.confirm;
+    window.confirm = () => true;
+    try {
+      await app.click(app.byRole("button", "Remove"));
+    } finally {
+      window.confirm = confirm;
+    }
+    assert.match(announced(app), /Manual adjustment removed: Manager true-up\./);
+    assert.equal(dataOf(app).manualAdjustments.some((a) => a.label === "Manager true-up"), false);
+  });
+
+  it("shows manual adjustments as read-only when the fund is locked", async () => {
+    const app = await mountApp({ hash: "#/trial-balance?fund=harbourline", user: "a-moreno" });
+    assert.equal(app.queryByRole("button", "Add manual adjustment"), null);
+    assert.equal(app.queryByRole("button", "Remove"), null);
+    assert.match(flatText(app.byRole("region", "Tax adjustments")), /No manual tax adjustments/);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------------------- the movements

@@ -448,6 +448,18 @@ function ShellViews() {
           onJurisdictionChange={setJurisdiction}
         />
       </div>
+      <div className="gallery__frame">
+        <HeaderView
+          routePath="/gst"
+          fundId={selected}
+          users={fx.FIXTURE_USERS}
+          userId={userId}
+          jurisdiction={jurisdiction}
+          onUserChange={setUserId}
+          onJurisdictionChange={setJurisdiction}
+          defaultNavOpen
+        />
+      </div>
       <div className="gallery__split">
         <div className="gallery__frame">
           <FundRailView groups={fx.FIXTURE_FUND_GROUPS} selectedId={selected} hrefFor={(id) => `#/_gallery?fund=${id}`} onSelect={setSelected} />

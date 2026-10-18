@@ -19,6 +19,13 @@ import {
   workflowView,
 } from "../../src/domain/selectors.ts";
 import { STORAGE_KEY, createStore } from "../../src/domain/store.ts";
+import { FEATURE_PROVIDERS } from "../../src/domain/providers.ts";
+import { gstLedgerView, gstPeriods, gstReturnView } from "../../src/domain/gst/index.ts";
+import { dutiesView, propertyTaxKpis, propertyTaxView } from "../../src/domain/ptax/index.ts";
+import { assetRegisterView, registerVsTrialBalance } from "../../src/domain/assets/index.ts";
+import { lastSignOffVersion, versionDiff } from "../../src/domain/governance/versions.ts";
+import { calendarView, riskRegister } from "../../src/domain/portfolio/index.ts";
+import { compareSources } from "../../src/domain/compare/index.ts";
 import type { StorageLike } from "../../src/domain/store.ts";
 import type { AppData, JurisdictionFilter, Persisted } from "../../src/domain/types.ts";
 
@@ -79,6 +86,24 @@ function sweep(data: AppData): string[] {
     look(`costBaseView ${fund.id}`, () => costBaseView(data, fund.id, ctx));
     look(`workflowView ${fund.id}`, () => workflowView(data, fund.id, ctx));
     for (const holder of data.holders.filter((h) => h.fundId === fund.id)) look(`statementDoc ${holder.id}`, () => statementDoc(data, fund.id, holder.id, NOW));
+    // v2 feature selectors and providers: a damaged-but-accepted state must render in every one of them too
+    look(`gstPeriods ${fund.id}`, () => gstPeriods(data, fund, NOW));
+    look(`gstReturnView ${fund.id}`, () => gstReturnView(data, fund.id, null, ctx));
+    for (const period of gstPeriods(data, fund, NOW)) look(`gstReturnView ${fund.id} ${period.end}`, () => gstReturnView(data, fund.id, period.end, ctx));
+    look(`gstLedgerView ${fund.id}`, () => gstLedgerView(data, fund.id));
+    look(`propertyTaxView ${fund.id}`, () => propertyTaxView(data, fund.id, ctx));
+    look(`dutiesView ${fund.id}`, () => dutiesView(data, fund.id, ctx));
+    look(`propertyTaxKpis ${fund.id}`, () => propertyTaxKpis(data, fund.id, ctx));
+    look(`assetRegisterView ${fund.id}`, () => assetRegisterView(data, fund.id, ctx));
+    look(`registerVsTrialBalance ${fund.id}`, () => registerVsTrialBalance(data, fund.id, ctx));
+    look(`compareSources ${fund.id}`, () => compareSources(data, fund.id, ctx));
+    const signOff = lastSignOffVersion(data, fund.id);
+    if (signOff) look(`versionDiff ${fund.id}`, () => versionDiff(data, signOff, "current", NOW));
+    for (const provider of FEATURE_PROVIDERS) {
+      if (provider.deadlines) look(`deadlines:${provider.id} ${fund.id}`, () => provider.deadlines!(data, fund, NOW));
+      if (provider.risks) look(`risks:${provider.id} ${fund.id}`, () => provider.risks!(data, fund, NOW));
+      if (provider.compareSources) look(`compareSources:${provider.id} ${fund.id}`, () => provider.compareSources!(data, fund, NOW));
+    }
   }
   for (const user of data.users) {
     const ctx = { user, now: NOW };
@@ -89,6 +114,8 @@ function sweep(data: AppData): string[] {
       look(`workbookModel ${user.id} ${jurisdiction}`, () => workbookModel(data, ctx, jurisdiction));
       look(`fundGroups ${user.id} ${jurisdiction}`, () => fundGroups(data, ctx, jurisdiction));
       look(`visibleFunds ${user.id} ${jurisdiction}`, () => visibleFunds(data, user, jurisdiction));
+      look(`calendarView ${user.id} ${jurisdiction}`, () => calendarView(data, ctx, jurisdiction, { showCompleted: true }));
+      look(`riskRegister ${user.id} ${jurisdiction}`, () => riskRegister(data, ctx, jurisdiction));
     }
   }
   return out;
@@ -197,7 +224,7 @@ test("deterministic damaged persistence either renders safely or falls back", ()
   assert.deepEqual(failures.slice(0, 5), []);
   assert.ok(accepted > 0, "some valid unusual mutations should still load");
   assert.ok(rejected > 100, "hostile mutations should be rejected");
-  assert.equal(`${accepted}/${rejected}`, "20/200");
+  assert.equal(`${accepted}/${rejected}`, "24/196"); // pinned so a change in what the validator accepts is a deliberate, reviewed change
 });
 
 test("valid but unusual states still load and render", () => {

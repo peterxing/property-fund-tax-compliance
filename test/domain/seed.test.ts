@@ -61,7 +61,7 @@ test("seed has the contract shape and the documented record counts", () => {
   assert.equal(seed.version, STATE_VERSION);
   assert.deepEqual(
     Object.keys(seed).sort(),
-    ["adjustmentDefs", "approvals", "audit", "auNotices", "funds", "holders", "lodgments", "properties", "queries", "sgLedger", "sgNotices", "taxAdjustments", "tbCategories", "tbRows", "unitCostBase", "users", "version"].sort(),
+    ["adjustmentDefs", "approvals", "assets", "audit", "auNotices", "funds", "gstFilings", "gstLedger", "holders", "lodgments", "manualAdjustments", "properties", "propertyProfiles", "queries", "sgLedger", "sgNotices", "taxAdjustments", "tbCategories", "tbRows", "unitCostBase", "users", "version", "versions"].sort(),
   );
   assert.deepEqual(
     {

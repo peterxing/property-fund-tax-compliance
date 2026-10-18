@@ -1,6 +1,6 @@
 // Flow 6: persona isolation. Every persona sees only the funds they were given, on every route; a deep link to a fund they cannot see falls
 // back to the first fund they can see; the store refuses what the pages would not offer; and the view-only persona is offered nothing that
-// changes data (found by scanning every button, box, list and field on all eight routes).
+// changes data (found by scanning every button, box, list and field on every route).
 //   node --disable-warning=ExperimentalWarning --import ./scripts/register-esbuild.mjs --test test/ui/flows/persona-isolation.test.tsx
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -76,7 +76,7 @@ describe("persona isolation", () => {
             seen,
             `${where}: the scenario can be run for the visible funds only`,
           );
-        } else {
+        } else if (route.path === "/access") {
           // Access is the directory of every user and every fund: it is not scoped to the persona (accessView lists data.funds).
           const governance = tableRows(tableByCaption(app, GOVERNANCE_CAPTION)).map((cells) => cells[0]!.replace(/^(Australia|Singapore) /, ""));
           assert.deepEqual(
@@ -167,7 +167,7 @@ describe("persona isolation", () => {
         { type: "approve", fundId, level: "review" },
         { type: "approve", fundId, level: "agent" },
         { type: "sign-off", fundId },
-        { type: "reopen", fundId },
+        { type: "reopen", fundId, reason: "Correcting signed-off inputs" },
         { type: "update-inputs", fundId, inputs: fund.inputs },
         { type: "update-holder-units", fundId, holderId, units: 1 },
         { type: "update-units-on-issue", fundId, units: 1000 },
@@ -268,6 +268,14 @@ describe("persona isolation", () => {
       { why: "Investor reporting: which period to look at", matches: (c) => c.type === "radio" && /^(Quarter|Half-year) ended /.test(c.name) },
       { why: "views of the same table", matches: (c) => ["Holder", "Sort", "Highlight changes over (%)", "Deferred tax for"].includes(c.name) },
       { why: "Reset demo data is housekeeping that Access offers every persona (design spec 2.8); it asks first", matches: (c) => c.name === "Reset demo data" },
+      { why: "the navigation's menu button shows the list of workspaces on a narrow screen", matches: (c) => c.tag === "button" && c.name === "Workspaces" },
+      { why: "GST & BAS: which period and which ledger lines to look at", matches: (c) => ["GST period", "Ledger period scope", "Filter GST ledger"].includes(c.name) || /^(Show \d+ ledger lines?|Hide ledger lines)$/.test(c.name) },
+      { why: "Versions: comparing a saved version with the inputs changes nothing", matches: (c) => ["Compare with current", "Compare from", "Compare to"].includes(c.name) },
+      { why: "Compare has no action that changes the data: it reads the other system's figures in the browser (remembered mappings are kept apart from the data)", matches: (c) => / Compare$/.test(c.where) },
+      { why: "Compliance calendar: how to show and filter the deadlines", matches: (c) => c.where === "Compliance calendar" && (["Month", "Agenda", "Status", "Kind"].includes(c.name) || /^Show (later|earlier) \(\d+\)$/.test(c.name)) },
+      { why: "Risk register: filters", matches: (c) => c.where === "Risk register" && ["Severity", "Area", "Search"].includes(c.name) },
+      { why: "Calculators work on what is typed into them and have no action that changes the data", matches: (c) => c.where === "Calculators" },
+      { why: "Rules & sources: filters over the rules registry", matches: (c) => c.where === "Rules & sources" && (["Search", "Market", "Domain", "Confidence", "Effective on"].includes(c.name) || /^Show (more|fewer)/.test(c.name)) },
     ];
 
     function enabledControls(app: MountedApp, where: string): Control[] {
@@ -282,7 +290,7 @@ describe("persona isolation", () => {
     const describeControl = (control: Control): string => `${control.where}: ${control.tag}${control.type ? `[${control.type}]` : ""} "${control.name}"`;
     const unlisted = (controls: Control[]): Control[] => controls.filter((control) => !READ_ONLY.some((entry) => entry.matches(control)));
 
-    /** Every fund workspace for every fund (with every tab of it) and the three portfolio workspaces. */
+    /** Every fund workspace for every fund (with every tab of it) and every portfolio workspace. */
     async function sweep(app: MountedApp, onPage: (controls: Control[], where: string) => Promise<void>, funds: readonly { id: string }[] = FUNDS): Promise<number> {
       let pages = 0;
       const visit = async (where: string): Promise<void> => {
@@ -317,7 +325,7 @@ describe("persona isolation", () => {
         for (const control of controls) kinds.add(`${control.tag}|${control.type}|${control.role}|${control.name}`);
         offending.push(...unlisted(controls).map(describeControl));
       });
-      assert.ok(pages >= FUNDS.length * FUND_ROUTES.length + 3, `the sweep visited ${pages} pages`);
+      assert.ok(pages >= FUNDS.length * FUND_ROUTES.length + ROUTES.filter((route) => route.scope === "portfolio").length, `the sweep visited ${pages} pages`);
       assert.deepEqual([...new Set(offending)], [], "controls a view-only persona can use that are not known to be read-only");
       assert.ok(kinds.size >= 30, `the sweep saw ${kinds.size} kinds of enabled control, so it is looking at real pages`);
       assert.ok(dataOf(app) === seed, "scanning changed nothing");
@@ -371,7 +379,7 @@ describe("persona isolation", () => {
         },
         FUNDS.filter((fund) => fund.id === "coastline"),
       );
-      for (const expected of ["Submit for review", "Raise query", "Publish notice", "Import trial balance", "Change funds for A. Moreno", "Withholding remitted", "Units on issue", "Tax category for 4510 Make-good income received", "Governance for Coastline Healthcare Property Fund"]) {
+      for (const expected of ["Submit for review", "Raise query", "Publish notice", "Import trial balance", "Change funds for A. Moreno", "Withholding remitted", "Units on issue", "Tax category for 4510 Make-good income received", "Governance for Coastline Healthcare Property Fund", "Save version"]) {
         assert.ok([...names].some((name) => name.replace(/\s+/g, " ") === expected || name.replace(/Change funds\s*for/, "Change funds for") === expected), `an editor is offered "${expected}" (the scan found ${[...names].slice(0, 12).join("; ")} ...)`);
       }
       assert.ok(names.size >= 30, `${names.size} controls are not read-only for the Head of Tax`);

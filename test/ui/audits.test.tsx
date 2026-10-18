@@ -1,4 +1,4 @@
-// The audits (audit.ts) on every workspace for every persona: 8 routes x 8 personas, each mounted fresh. The only findings tolerated are the
+// The audits (audit.ts) on every workspace for every persona, each mounted fresh. The only findings tolerated are the
 // ones in allowlist.ts (none at the moment); anything else is a bug in the page, listed with where it is.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";

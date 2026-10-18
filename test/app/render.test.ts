@@ -72,12 +72,31 @@ describe("header", () => {
     assert.equal(text(one(frag, "h1")), "Property Fund Tax Compliance");
   });
 
-  it("lists the eight workspaces in a labelled nav and marks only the current one", () => {
+  it("lists the workspaces in two labelled groups and marks only the current one", () => {
     const nav = one(frag, 'nav[aria-label="Workspaces"]');
+    assert.deepEqual(all(nav, ".app-nav__group-label").map(text), ["Fund", "Portfolio"]);
     const links = all(nav, "a");
     assert.deepEqual(
       links.map((a) => text(a)),
-      ["Distributions", "Trial balance", "Tax returns", "Investor reporting", "Cost base & CGT", "Bulk review", "Analytics", "Access"],
+      [
+        "Distributions",
+        "Trial balance",
+        "Tax returns",
+        "Investor reporting",
+        "Cost base & CGT",
+        "GST & BAS",
+        "Property taxes",
+        "Assets & allowances",
+        "Compare",
+        "Bulk review",
+        "Analytics",
+        "Compliance calendar",
+        "Risk register",
+        "Calculators",
+        "Rules & sources",
+        "Data",
+        "Access",
+      ],
     );
     const current = all(nav, '[aria-current="page"]');
     assert.equal(current.length, 1);
@@ -89,15 +108,29 @@ describe("header", () => {
     assert.equal(hrefs["Distributions"], "#/?fund=harbourline");
     assert.equal(hrefs["Trial balance"], "#/trial-balance?fund=harbourline");
     assert.equal(hrefs["Cost base & CGT"], "#/cost-base?fund=harbourline");
+    assert.equal(hrefs["GST & BAS"], "#/gst?fund=harbourline");
+    assert.equal(hrefs["Compare"], "#/compare?fund=harbourline");
     assert.equal(hrefs["Bulk review"], "#/bulk-review");
     assert.equal(hrefs["Analytics"], "#/analytics");
+    assert.equal(hrefs["Data"], "#/data");
     assert.equal(hrefs["Access"], "#/access");
   });
 
   it("hides the nav icons from assistive technology", () => {
     const icons = all(frag, "nav svg");
-    assert.equal(icons.length, 8);
+    assert.equal(icons.length, 18);
     for (const icon of icons) assert.equal(icon.getAttribute("aria-hidden"), "true");
+  });
+
+  it("has a compact menu button that controls the grouped links", () => {
+    const nav = one(frag, 'nav[aria-label="Workspaces"]');
+    const button = one(nav, "button.app-nav__toggle");
+    assert.equal(button.getAttribute("type"), "button");
+    assert.equal(readable(button), "Workspaces");
+    const panel = byId(frag, button.getAttribute("aria-controls") ?? "");
+    assert.equal(button.getAttribute("aria-expanded"), "false");
+    assert.ok(panel.classList.contains("app-nav__panel"));
+    assert.equal(all(panel, "a").length, 17);
   });
 
   it("labels the persona switcher and selects the current persona", () => {
@@ -171,6 +204,14 @@ describe("fund rail", () => {
     assert.equal(text(one(scene("railEmpty"), ".fund-rail__empty")), "No funds assigned to this persona.");
     assert.equal(text(one(scene("railEmptyCustom"), ".fund-rail__empty")), "Nothing here.");
     assert.equal(all(scene("railEmpty"), "a").length, 0);
+  });
+
+  it("adds a Manage funds link for personas allowed to create or edit funds", () => {
+    const link = one(scene("railManage"), ".fund-rail__manage-link");
+    assert.equal(text(link), "Manage funds");
+    assert.equal(link.getAttribute("href"), "#/data?tab=funds");
+    assert.equal(one(scene("railEmptyManage"), ".fund-rail__manage-link").getAttribute("href"), "#/data?tab=funds");
+    assert.equal(all(scene("rail"), ".fund-rail__manage-link").length, 0);
   });
 });
 

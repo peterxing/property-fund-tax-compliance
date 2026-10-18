@@ -466,7 +466,7 @@ describe("an AIIR lodged before the fund was reopened", () => {
     const reopened = { kind: "reopened", ...history, note: WARNING, replaceReason: NOT_SIGNED_OFF_REASON };
     assert.deepEqual(sectionFor("wattle", "a-moreno"), lodged);
 
-    let data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle" }]]);
+    let data = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }]]);
     assert.equal(auFund(data, "wattle").status, "Preparing");
     assert.deepEqual(au("wattle", "a-moreno", undefined, data).view.aiir.lodgment, lodgment);
     assert.deepEqual(sectionFor("wattle", "a-moreno", data), reopened);
@@ -491,7 +491,7 @@ describe("an AIIR lodged before the fund was reopened", () => {
   it("follows a fund that is lodged here and then reopened (Harbourline: the Head of Tax lodges, the agent signs off)", () => {
     const recorded = run(freshData(), [["a-moreno", { type: "record-lodgment", fundId: "harbourline", kind: "aiir", reference: "Receipt 418806555001", date: "2026-10-12" }]]);
     assert.equal(sectionFor("harbourline", "a-moreno", recorded).kind, "lodged");
-    const reopened = run(recorded, [["a-moreno", { type: "reopen", fundId: "harbourline" }]]);
+    const reopened = run(recorded, [["a-moreno", { type: "reopen", fundId: "harbourline", reason: "Correcting signed-off inputs" }]]);
     assert.deepEqual(sectionFor("harbourline", "a-moreno", reopened), {
       kind: "reopened",
       title: "Previously lodged with the ATO",
@@ -618,7 +618,7 @@ describe("replacing the AIIR lodgment record", () => {
   });
 
   it("gives way to the switched-off control, and to the domain's refusal, once the fund is reopened", () => {
-    const reopened = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle" }]]);
+    const reopened = run(freshData(), [["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }]]);
     const section = sectionFor("wattle", "a-moreno", reopened);
     assert.equal(section.kind, "reopened");
     assert.equal(section.kind === "reopened" ? section.replaceReason : null, NOT_SIGNED_OFF_REASON);

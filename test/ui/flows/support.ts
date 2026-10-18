@@ -70,6 +70,10 @@ export async function pressHeader(app: MountedApp, label: string): Promise<strin
   assert.ok(action, `"${label}" is offered; the header shows ${JSON.stringify(offered(app))}`);
   assert.equal(action.disabled, false, `"${label}" is available (${action.reason ?? ""})`);
   await app.click(action.element);
+  if (label === "Reopen") {
+    await app.type(app.byLabel("Reason") as HTMLTextAreaElement, "Correcting signed-off inputs");
+    await app.click(app.$(".dialog__footer .btn--primary"));
+  }
   return announced(app);
 }
 

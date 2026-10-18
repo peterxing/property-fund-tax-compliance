@@ -40,195 +40,49 @@ import type {
 } from "../types.ts";
 import { STATE_VERSION, UNMAPPED_CATEGORY } from "../types.ts";
 import { GOVERNANCE_MODES, ROLES } from "../permissions.ts";
-import { MAX_ACCOUNT, MAX_ARRAY, MAX_FUND_ID, MAX_NAME, MAX_STRING, isISODate, isLocalDateTime } from "./validate.ts";
+import { MAX_ACCOUNT, MAX_ARRAY, MAX_NAME, MAX_STRING } from "./validate.ts";
+import {
+  Invalid,
+  amount,
+  bad,
+  bool,
+  dict,
+  fundKey,
+  id,
+  int,
+  isoDate,
+  label,
+  list,
+  literal,
+  longText,
+  name,
+  nullable,
+  oneOf,
+  optional,
+  preflight,
+  price,
+  record,
+  resetBudget,
+  shape,
+  signed,
+  stamp,
+  text,
+  tick,
+  unique,
+  type Rule,
+} from "./schemaKit.ts";
+export { MAX_DEPTH, MAX_NODES, MAX_RECORDS } from "./schemaKit.ts";
+import { fixedAsset, assetsRelations } from "../assets/schema.ts";
+import { calcVersion, governanceRelations, manualAdjustment } from "../governance/schema.ts";
+import { gstEntry, gstFiling, gstRelations } from "../gst/schema.ts";
+import { propertyProfile, ptaxRelations } from "../ptax/schema.ts";
 
 /** Most funds and most users a state may hold (every portfolio screen loops over them). */
 export const MAX_PEOPLE_AND_FUNDS = 200;
-/** Most values (strings, numbers, lists, objects) one state may hold. A seeded state has about 4,000. */
-export const MAX_NODES = 500_000;
-/** Most object/array records a state may contain. */
-export const MAX_RECORDS = 100_000;
-/** Deepest object/array nesting accepted in saved state. */
-export const MAX_DEPTH = 8;
 /** Largest saved state, in characters, that loadPersisted will even try to parse. */
 export const MAX_SERIALISED = 8_000_000;
-const MAX_PRICE = 1e9;
 const MIN_ASSESSMENT_YEAR = 2000;
 const MAX_ASSESSMENT_YEAR = 2200;
-
-// ---------------------------------------------------------------------------------------------------- rule toolkit
-type Rule = (value: unknown, at: string) => void;
-type Field = Rule | { optional: Rule };
-
-class Invalid extends Error {}
-
-let nodes = 0;
-let records = 0;
-
-function bad(at: string, why: string): never {
-  throw new Invalid(`${at} ${why}`);
-}
-
-function tick(at: string): void {
-  nodes += 1;
-  if (nodes > MAX_NODES) bad(at, "pushes the saved state past its size limit");
-}
-
-/** Names that exist on every object: never acceptable as an id or a key, because ids are used to index plain objects. */
-function reserved(name: string): boolean {
-  return name === "__proto__" || name === "constructor" || name === "prototype" || name in Object.prototype;
-}
-
-function preflight(value: unknown, at: string, depth = 0): void {
-  tick(at);
-  if (value === null || typeof value !== "object") return;
-  if (depth > MAX_DEPTH) bad(at, `is nested more than ${MAX_DEPTH} levels deep`);
-  records += 1;
-  if (records > MAX_RECORDS) bad(at, `has more than ${MAX_RECORDS} records`);
-  if (Array.isArray(value)) {
-    if (value.length > MAX_ARRAY) bad(at, `has more than ${MAX_ARRAY} items`);
-    for (let i = 0; i < value.length; i++) preflight(value[i], `${at}[${i}]`, depth + 1);
-    return;
-  }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) bad(at, "must be a plain object");
-  const obj = value as Record<string, unknown>;
-  for (const key of Object.keys(obj)) {
-    if (reserved(key)) bad(`${at}.${key}`, "is not allowed");
-    preflight(obj[key], `${at}.${key}`, depth + 1);
-  }
-}
-function record(value: unknown, at: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) bad(at, "must be an object");
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) bad(at, "must be a plain object");
-  return value as Record<string, unknown>;
-}
-
-const optional = (rule: Rule): Field => ({ optional: rule });
-
-/** An object with exactly these fields (optional ones may be absent). Anything else, including __proto__, is refused. */
-function shape<T>(fields: { [K in keyof T]-?: Field }): Rule {
-  const entries = Object.entries(fields) as Array<[string, Field]>;
-  const known = new Set(entries.map(([key]) => key));
-  return (value, at) => {
-    tick(at);
-    const obj = record(value, at);
-    for (const key of Object.keys(obj)) {
-      if (!known.has(key)) bad(`${at}.${key}`, reserved(key) ? "is not allowed" : "is not a known field");
-    }
-    for (const [key, field] of entries) {
-      const present = Object.hasOwn(obj, key) && obj[key] !== undefined;
-      if (typeof field === "function") {
-        if (!present) bad(`${at}.${key}`, "is missing");
-        field(obj[key], `${at}.${key}`);
-      } else if (present) {
-        field.optional(obj[key], `${at}.${key}`);
-      }
-    }
-  };
-}
-
-/** An object used as a lookup table: any keys (ids), every value passing `item`. */
-const dict =
-  (item: Rule): Rule =>
-  (value, at) => {
-    tick(at);
-    const obj = record(value, at);
-    const keys = Object.keys(obj);
-    if (keys.length > MAX_ARRAY) bad(at, `has more than ${MAX_ARRAY} entries`);
-    for (const key of keys) {
-      if (key === "" || key.length > MAX_NAME || reserved(key)) bad(`${at}.${key.slice(0, 40)}`, "is not an acceptable key");
-      item(obj[key], `${at}.${key}`);
-    }
-  };
-
-const list =
-  (item: Rule, min = 0, max = MAX_ARRAY): Rule =>
-  (value, at) => {
-    tick(at);
-    if (!Array.isArray(value)) bad(at, "must be a list");
-    if (value.length > max) bad(at, `has more than ${max} items`);
-    if (value.length < min) bad(at, `needs at least ${min} item${min === 1 ? "" : "s"}`);
-    for (let i = 0; i < value.length; i++) item(value[i], `${at}[${i}]`);
-  };
-
-const text =
-  (max: number, min = 0): Rule =>
-  (value, at) => {
-    tick(at);
-    if (typeof value !== "string") bad(at, "must be text");
-    if (value.length > max) bad(at, `is longer than ${max} characters`);
-    if (value.length < min) bad(at, "must not be empty");
-  };
-
-const idOf =
-  (max: number): Rule =>
-  (value, at) => {
-    text(max, 1)(value, at);
-    if (reserved(value as string)) bad(at, "is a reserved word");
-  };
-
-const id = idOf(MAX_NAME);
-const fundKey = idOf(MAX_FUND_ID);
-
-const label = text(MAX_NAME);
-const name = text(MAX_NAME, 1);
-const longText = text(MAX_STRING);
-
-const bool: Rule = (value, at) => {
-  tick(at);
-  if (typeof value !== "boolean") bad(at, "must be true or false");
-};
-
-const oneOf =
-  (options: readonly string[]): Rule =>
-  (value, at) => {
-    tick(at);
-    if (typeof value !== "string" || !options.includes(value)) bad(at, `must be one of ${options.join(", ")}`);
-  };
-
-const literal =
-  (expected: string | number): Rule =>
-  (value, at) => {
-    tick(at);
-    if (value !== expected) bad(at, `must be ${expected}`);
-  };
-
-const int =
-  (min: number, max = Number.MAX_SAFE_INTEGER): Rule =>
-  (value, at) => {
-    tick(at);
-    if (typeof value !== "number" || !Number.isSafeInteger(value)) bad(at, "must be a whole number");
-    if (value < min || value > max) bad(at, `must be between ${min} and ${max}`);
-  };
-
-/** Cents or units that may not be negative. */
-const amount = int(0);
-/** Trial balance balances, signed. */
-const signed = int(Number.MIN_SAFE_INTEGER);
-
-const price: Rule = (value, at) => {
-  tick(at);
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > MAX_PRICE) bad(at, "must be a price of zero or more");
-};
-
-const isoDate: Rule = (value, at) => {
-  tick(at);
-  if (!isISODate(value)) bad(at, "must be a date (YYYY-MM-DD)");
-};
-
-const stamp: Rule = (value, at) => {
-  tick(at);
-  if (!isLocalDateTime(value)) bad(at, "must be a date and time (YYYY-MM-DDTHH:mm:ss)");
-};
-
-const nullable =
-  (rule: Rule): Rule =>
-  (value, at) => {
-    if (value === null) tick(at);
-    else rule(value, at);
-  };
 
 // ---------------------------------------------------------------------------------------------------- shapes
 const auInputs = shape<AuInputs>({
@@ -390,20 +244,18 @@ const appData = shape<AppData>({
   approvals: list(approval),
   lodgments: list(lodgment),
   users: list(user, 1, MAX_PEOPLE_AND_FUNDS),
+  gstLedger: list(gstEntry),
+  gstFilings: list(gstFiling),
+  propertyProfiles: list(propertyProfile),
+  assets: list(fixedAsset),
+  versions: list(calcVersion),
+  manualAdjustments: list(manualAdjustment),
 });
 
 const ui = shape<UiState>({ currentUserId: id, jurisdiction: oneOf(["all", "AU", "SG"]), selectedFundId: nullable(fundKey) });
 const persisted = shape<Persisted>({ data: appData, ui });
 
 // ---------------------------------------------------------------------------------------------------- relations between records
-function unique<T>(items: readonly T[], keyOf: (item: T) => string, at: string, what = "id"): void {
-  const seen = new Set<string>();
-  items.forEach((item, i) => {
-    const key = keyOf(item);
-    if (seen.has(key)) bad(`${at}[${i}]`, `repeats ${what} ${key.slice(0, 40)}`);
-    seen.add(key);
-  });
-}
 
 /** Ids point at records that exist, classes match the fund's market, and nothing is listed twice. Runs on data that passed the shapes. */
 function relations(data: AppData, state: UiState): void {
@@ -489,14 +341,19 @@ function relations(data: AppData, state: UiState): void {
     u.funds.forEach((fundId, j) => marketFor(fundId, `users[${i}].funds[${j}]`));
   });
 
+  // Feature records (each feature owns its checks in src/domain/<feature>/schema.ts).
+  gstRelations(data, marketFor);
+  ptaxRelations(data, marketFor);
+  assetsRelations(data, marketFor);
+  governanceRelations(data, marketFor);
+
   if (!data.users.some((u) => u.id === state.currentUserId)) bad("ui.currentUserId", "names a user that does not exist");
   if (state.selectedFundId !== null) marketFor(state.selectedFundId, "ui.selectedFundId");
 }
 
 // ---------------------------------------------------------------------------------------------------- entry points
 function run(value: unknown, check: (value: unknown) => void): string | null {
-  nodes = 0;
-  records = 0;
+  resetBudget();
   try {
     preflight(value, "state");
     check(value);

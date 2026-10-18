@@ -6,6 +6,15 @@ export type IconName =
   | "landmark"
   | "file-text"
   | "scale"
+  | "receipt"
+  | "building"
+  | "layers"
+  | "columns"
+  | "calendar"
+  | "flag"
+  | "calculator"
+  | "book"
+  | "database"
   | "list-checks"
   | "bar-chart"
   | "users"
@@ -59,6 +68,64 @@ const GLYPHS: Record<IconName, ReactNode> = {
     <>
       <path d="M8 2.5v11M5 13.5h6M3 4.5h10" />
       <path d="M3 5 1.5 9.5h3zM13 5l-1.5 4.5h3z" />
+    </>
+  ),
+  receipt: (
+    <>
+      <path d="M4 2h8v12l-2-1.2L8 14l-2-1.2L4 14z" />
+      <path d="M6.2 5.5h3.6M6.2 8h3.6M6.2 10.5h2" />
+    </>
+  ),
+  building: (
+    <>
+      <path d="M3 14V3.5A1.5 1.5 0 0 1 4.5 2h7A1.5 1.5 0 0 1 13 3.5V14" />
+      <path d="M2 14h12M6 14v-3h4v3M5.5 5h.01M8 5h.01M10.5 5h.01M5.5 7.5h.01M8 7.5h.01M10.5 7.5h.01" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="M8 2.5 14 5.6 8 8.7 2 5.6z" />
+      <path d="M3.8 8 2 8.9 8 12l6-3.1-1.8-.9" />
+      <path d="M3.8 11.1 2 12 8 15l6-3-1.8-.9" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="2" y="3" width="4.5" height="10" rx="1" />
+      <rect x="9.5" y="3" width="4.5" height="10" rx="1" />
+      <path d="M7 6h2M9 6 8 5 7 6l1 1M9 10H7M7 10l1-1 1 1-1 1" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="2.5" y="3.5" width="11" height="10" rx="1.5" />
+      <path d="M5 2v3M11 2v3M2.5 6.5h11M5.5 9h.01M8 9h.01M10.5 9h.01M5.5 11.5h.01M8 11.5h.01" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M4 14V2.5" />
+      <path d="M4 3h8l-1.2 2L12 7H4" />
+      <path d="M4 7h6" />
+    </>
+  ),
+  calculator: (
+    <>
+      <rect x="3" y="2" width="10" height="12" rx="1.5" />
+      <path d="M5.5 4.5h5M5.5 7.5h.01M8 7.5h.01M10.5 7.5h.01M5.5 10h.01M8 10h.01M10.5 10h.01M5.5 12.5h.01M8 12.5h.01M10.5 12.5h.01" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M3 3.5A1.5 1.5 0 0 1 4.5 2H13v11.5H4.5A1.5 1.5 0 0 0 3 15z" />
+      <path d="M3 3.5v10A1.5 1.5 0 0 1 4.5 12H13M6 5h4.5M6 7.5h3" />
+    </>
+  ),
+  database: (
+    <>
+      <ellipse cx="8" cy="3.5" rx="5" ry="2" />
+      <path d="M3 3.5v4c0 1.1 2.2 2 5 2s5-.9 5-2v-4" />
+      <path d="M3 7.5v4c0 1.1 2.2 2 5 2s5-.9 5-2v-4" />
     </>
   ),
   "list-checks": (

@@ -171,13 +171,13 @@ test("set-governance is for the head of tax, on funds that are not signed off, w
   assert.equal(denied(data, "a-moreno", governance("harbourline", "no-agent")), "This fund is signed off. Reopen it before changing its governance.");
   const inReview = ok(data, "a-moreno", governance("meranti", "no-agent"));
   assert.equal(fundOf(inReview, "meranti").governance, "no-agent", "a fund in review can change governance");
-  const afterReopen = ok(ok(data, "a-moreno", { type: "reopen", fundId: "loyang" }), "a-moreno", governance("loyang", "agent-lodges"));
+  const afterReopen = ok(ok(data, "a-moreno", { type: "reopen", fundId: "loyang", reason: "Correcting signed-off inputs" }), "a-moreno", governance("loyang", "agent-lodges"));
   assert.equal(fundOf(afterReopen, "loyang").governance, "agent-lodges");
 });
 
 test("set-governance changes who records lodgment", () => {
   let data = frozenSeed();
-  data = ok(data, "a-moreno", { type: "reopen", fundId: "loyang" });
+  data = ok(data, "a-moreno", { type: "reopen", fundId: "loyang", reason: "Correcting signed-off inputs" });
   data = ok(data, "a-moreno", governance("loyang", "agent-lodges"));
   data = ok(data, "a-moreno", { type: "set-user-funds", userId: "s-lim", funds: ["telok-ayer", "loyang", "meranti"] });
   data = chain(data, [

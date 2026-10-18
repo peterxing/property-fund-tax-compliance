@@ -7,6 +7,9 @@
 //  * setUser/setJurisdiction/selectFund update ui only. After a user change, selectedFundId must remain one the user can see
 //    (else fall back to the first visible fund, or null).
 //  * reset() re-seeds data and keeps the current user, jurisdiction toggle reset to "all".
+//  * importData(value) replaces all data with a validated backup (same checks as saved state) and keeps the persona when it still exists.
+//  * dispatch / dispatchBulk refuse (and do not save) a result that would fail those same checks, so no action can ever store data the
+//    loader would reject on the next visit.
 //
 // Behaviour the UI relies on:
 //  * getState() returns the same object until something really changes (no-op dispatches, ignored selections and repeated setUser calls
@@ -31,6 +34,7 @@ import type {
   UserId,
 } from "./types.ts";
 import { applyAction, applyBulk } from "./actions.ts";
+import { STATE_VERSION } from "./types.ts";
 import { MAX_SERIALISED, appDataProblem, validatePersisted } from "./core/schema.ts";
 import { visibleFundsOf } from "./core/visible.ts";
 import { defaultUi, seedData } from "./seed/index.ts";
@@ -126,6 +130,22 @@ export function loadPersisted(storage?: StorageLike | null): Persisted {
   return freshState();
 }
 
+/** The app name written into backups by the Data page ({ app, version, exportedAt, data }). */
+export const BACKUP_APP_NAME = "property-fund-tax-compliance";
+
+/**
+ * Accepts either bare AppData or the backup wrapper { app, version, exportedAt, data } the Data page downloads, and returns the AppData
+ * part, or a readable reason when the wrapper belongs to another app or another data version.
+ */
+function unwrapBackup(value: unknown): unknown {
+  if (!isDict(value) || !Object.hasOwn(value, "data") || Object.hasOwn(value, "funds")) return value;
+  const keys = Object.keys(value);
+  if (keys.some((k) => !["app", "version", "exportedAt", "data"].includes(k))) return "This file is not a backup from this app.";
+  if (value.app !== BACKUP_APP_NAME) return "This file is not a backup from this app.";
+  if (value.version !== STATE_VERSION) return `This backup is from data version ${String(value.version)}; this version of the app reads version ${STATE_VERSION} only.`;
+  if (value.exportedAt !== undefined && (typeof value.exportedAt !== "string" || value.exportedAt.length > 64)) return "This backup's export date is not readable.";
+  return value.data;
+}
 function browserStorage(): StorageLike | null {
   try {
     return (globalThis as { localStorage?: StorageLike }).localStorage ?? null;
@@ -197,7 +217,12 @@ export function createStore(options: StoreOptions = {}): Store {
       } catch {
         return { ok: false, reason: FAILED };
       }
-      if (result.ok && result.data !== state.data) commit({ data: result.data, ui: reconcile(result.data, state.ui) });
+      if (result.ok && result.data !== state.data) {
+        // Defence in depth: never save a state the loader would refuse (that would silently reset the user's data on the next visit).
+        const problem = appDataProblem(result.data);
+        if (problem !== null) return { ok: false, reason: `This change was not saved because it would leave the data unreadable (${problem}).` };
+        commit({ data: result.data, ui: reconcile(result.data, state.ui) });
+      }
       return result;
     },
 
@@ -208,7 +233,11 @@ export function createStore(options: StoreOptions = {}): Store {
       if (!ctx) return skipAll("No user is signed in");
       try {
         const { data, result } = applyBulk(state.data, kind, fundIds, ctx);
-        if (data !== state.data) commit({ data, ui: reconcile(data, state.ui) });
+        if (data !== state.data) {
+          const problem = appDataProblem(data);
+          if (problem !== null) return skipAll(`Not saved: the result would leave the data unreadable (${problem}).`);
+          commit({ data, ui: reconcile(data, state.ui) });
+        }
         return result;
       } catch {
         return skipAll(FAILED);
@@ -240,6 +269,22 @@ export function createStore(options: StoreOptions = {}): Store {
       const keep = data.users.some((u) => u.id === state.ui.currentUserId) ? state.ui.currentUserId : defaultUi().currentUserId;
       const ui = reconcile(data, { currentUserId: keep, jurisdiction: "all", selectedFundId: null });
       commit({ data, ui });
+    },
+
+    importData(value: unknown): string | null {
+      try {
+        if (hasPoisonKey(value)) return "The backup contains a field name that is not allowed (__proto__, constructor or prototype).";
+        const unwrapped = unwrapBackup(value);
+        if (typeof unwrapped === "string") return unwrapped;
+        const problem = appDataProblem(unwrapped);
+        if (problem !== null) return `This file is not a backup this version can load: ${problem}.`;
+        const data = structuredClone(unwrapped) as AppData;
+        const keep = data.users.some((u) => u.id === state.ui.currentUserId) ? state.ui.currentUserId : data.users[0]!.id;
+        commit({ data, ui: reconcile(data, { currentUserId: keep, jurisdiction: state.ui.jurisdiction, selectedFundId: state.ui.selectedFundId }) });
+        return null;
+      } catch {
+        return "The backup could not be read.";
+      }
     },
   };
 }

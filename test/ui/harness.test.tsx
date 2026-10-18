@@ -22,6 +22,7 @@ import {
   render,
   storage,
 } from "./harness.tsx";
+import { ROUTES } from "./routes.ts";
 import { expectNone, expectNotSame, expectSame } from "./same.ts";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
@@ -273,14 +274,14 @@ describe("queries", () => {
   it("find by role and accessible name, by label and by selector", async () => {
     const app = await mountApp();
     const nav = app.byRole("navigation", "Workspaces");
-    assert.equal(app.allByRole("link").filter((a) => nav.contains(a)).length, 8);
+    assert.equal(app.allByRole("link").filter((a) => nav.contains(a)).length, ROUTES.length);
     assert.equal(app.byRole("link", /^Cost base/).textContent?.trim(), "Cost base & CGT");
     assert.equal(app.byRole("heading", { name: "Harbourline Office Trust", level: 2 }).className, "fund-header__name");
     assert.equal(app.byLabel("Working as").localName, "select");
     assert.equal(app.$("main").id, "main");
-    expectNone(app.maybe("dialog"), "no dialog on the page");
+    expectNone(app.maybe("dialog[open]"), "no open dialog on the page (the fund header keeps its closed Reopen dialog mounted)");
     expectNone(app.queryByRole("dialog"), "no dialog in the accessibility tree");
-    assert.ok(app.$$("a.app-nav__link").length === 8);
+    assert.ok(app.$$("a.app-nav__link").length === ROUTES.length);
     assert.throws(() => app.$("section.nope"), /No element matches "section.nope"/);
   });
 
@@ -450,7 +451,10 @@ describe("interactions", () => {
     const app = await mountApp();
     const skip = app.byRole("link", "Skip to fund workspace");
     await app.press(skip, "Tab");
-    expectSame(document.activeElement, app.byRole("link", "Distributions"), "Tab from the skip link goes to the first navigation link");
+    const menu = app.byRole("button", "Workspaces");
+    expectSame(document.activeElement, menu, "Tab from the skip link goes to the navigation's menu button (the style sheet hides it from 1100px up)");
+    await app.press(menu, "Tab");
+    expectSame(document.activeElement, app.byRole("link", "Distributions"), "and then to the first navigation link");
     await app.press(skip, "Enter");
     expectSame(document.activeElement, app.$("main#main"), "the skip link moves focus to the main area");
     assert.equal(app.hash(), "#/?fund=harbourline", "the skip link does not replace the route");

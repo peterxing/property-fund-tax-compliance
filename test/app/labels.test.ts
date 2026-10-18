@@ -134,11 +134,10 @@ describe("workflow actions", () => {
     assert.deepEqual(workflowAction("approve-review", "f1"), { type: "approve", fundId: "f1", level: "review" });
     assert.deepEqual(workflowAction("approve-agent", "f1"), { type: "approve", fundId: "f1", level: "agent" });
     assert.deepEqual(workflowAction("sign-off", "f1"), { type: "sign-off", fundId: "f1" });
-    assert.deepEqual(workflowAction("reopen", "f1"), { type: "reopen", fundId: "f1" });
   });
 
   it("has no action for buttons that are not workflow steps", () => {
-    for (const id of ["edit", "publish", "query", "lodge", "manage-access"] as const) assert.equal(workflowAction(id, "f1"), null, id);
+    for (const id of ["edit", "publish", "query", "reopen", "lodge", "manage-access"] as const) assert.equal(workflowAction(id, "f1"), null, id);
   });
 
   it("confirms each step in words", () => {
@@ -159,6 +158,15 @@ describe("workflow actions", () => {
 describe("navigation labels", () => {
   it("has an icon for every workspace", () => {
     for (const route of ROUTES) assert.ok(WORKSPACE_ICON[route.id], route.id);
+    assert.equal(WORKSPACE_ICON.gst, "receipt");
+    assert.equal(WORKSPACE_ICON["property-taxes"], "building");
+    assert.equal(WORKSPACE_ICON.assets, "layers");
+    assert.equal(WORKSPACE_ICON.compare, "columns");
+    assert.equal(WORKSPACE_ICON.calendar, "calendar");
+    assert.equal(WORKSPACE_ICON.risks, "flag");
+    assert.equal(WORKSPACE_ICON.calculators, "calculator");
+    assert.equal(WORKSPACE_ICON.rules, "book");
+    assert.equal(WORKSPACE_ICON.data, "database");
   });
 
   it("builds the document title", () => {

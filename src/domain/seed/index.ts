@@ -11,6 +11,10 @@ import { PROPERTIES } from "./properties.ts";
 import { SG_LEDGER, UNIT_COST_BASE } from "./costBase.ts";
 import { AU_NOTICES, SG_NOTICES } from "./notices.ts";
 import { APPROVALS, AUDIT, LODGMENTS, QUERIES, USERS } from "./workflow.ts";
+import { SEED_ASSETS } from "../assets/seed.ts";
+import { SEED_MANUAL_ADJUSTMENTS, buildSeedVersions } from "../governance/seed.ts";
+import { SEED_GST_FILINGS, SEED_GST_LEDGER } from "../gst/seed.ts";
+import { SEED_PROPERTY_PROFILES } from "../ptax/seed.ts";
 
 function deepFreeze(value: unknown): void {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
@@ -36,7 +40,14 @@ const TEMPLATE: AppData = {
   approvals: APPROVALS,
   lodgments: LODGMENTS,
   users: USERS,
+  gstLedger: [...SEED_GST_LEDGER],
+  gstFilings: [...SEED_GST_FILINGS],
+  propertyProfiles: [...SEED_PROPERTY_PROFILES],
+  assets: [...SEED_ASSETS],
+  versions: [],
+  manualAdjustments: [...SEED_MANUAL_ADJUSTMENTS],
 };
+TEMPLATE.versions = buildSeedVersions(TEMPLATE);
 deepFreeze(TEMPLATE);
 
 /** A fresh, deep-copied AppData. Calling it twice returns independent objects. */

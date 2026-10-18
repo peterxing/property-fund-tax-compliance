@@ -141,7 +141,14 @@ function expectShows(app: MountedApp, section: LodgmentSection, where: string): 
 }
 
 /** Presses a button of the fund header, the way a person does. */
-const press = (app: MountedApp, label: string): Promise<void> => app.click(app.byRole("button", label));
+/** Presses a button; "Reopen" also gives the reason its dialog asks for and confirms. */
+async function press(app: MountedApp, label: string): Promise<void> {
+  await app.click(app.byRole("button", label));
+  if (label === "Reopen") {
+    await app.type(app.byLabel("Reason") as HTMLTextAreaElement, "Correcting signed-off inputs");
+    await app.click(app.$(".dialog__footer .btn--primary"));
+  }
+}
 
 const REFERENCE = /^ATO receipt reference$/;
 

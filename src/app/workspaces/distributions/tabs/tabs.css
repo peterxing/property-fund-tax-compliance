@@ -43,6 +43,10 @@
   max-width: none;
   margin-inline: calc(-1 * var(--space-3));
 }
+.rv-review .tabs__panel:focus,
+.rv-review .tabs__panel:focus-visible {
+  outline: none;
+}
 
 /* ---------------------------------------------------------------- withholding */
 .rv-withholding {
@@ -330,6 +334,22 @@
   font-size: var(--text-table);
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- versions */
+.rv-versions {
+  min-width: 46rem;
+}
+.rv-versions-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rv-versions code {
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 @media (max-width: 640px) {
   .rv-audit__row {

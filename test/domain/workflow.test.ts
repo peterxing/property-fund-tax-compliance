@@ -8,7 +8,8 @@ import type { Action, AppData } from "../../src/domain/types.ts";
 import { AU_FUNDS, NOW, NOW_STAMP, PERSONAS, SG_FUNDS, chain, ctxOf, denied, frozenSeed, fundOf, modulesReady, ok, sampleStates, seed, skipUnlessReady, userOf } from "./core-fixtures.ts";
 
 const approve = (fundId: string, level: "review" | "agent"): Action => ({ type: "approve", fundId, level });
-const act = (type: "submit" | "return" | "sign-off" | "reopen", fundId: string): Action => ({ type, fundId });
+const act = (type: "submit" | "return" | "sign-off" | "reopen", fundId: string): Action =>
+  type === "reopen" ? { type, fundId, reason: "Correcting signed-off inputs" } : { type, fundId };
 const status = (data: AppData, id: string) => fundOf(data, id).status;
 const approvalsOf = (data: AppData, fundId: string) => data.approvals.filter((a) => a.fundId === fundId);
 const lastAudit = (data: AppData) => data.audit[data.audit.length - 1];
@@ -177,7 +178,7 @@ test("reopen unlocks a signed-off fund and clears its approvals", () => {
     at: NOW_STAMP,
     actor: "A. Moreno",
     action: "Reopened",
-    detail: "Sign-off removed; components unlocked",
+    detail: "Sign-off removed; components unlocked. Reason: Correcting signed-off inputs",
   });
 });
 

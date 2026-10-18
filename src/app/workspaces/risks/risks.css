@@ -1,0 +1,49 @@
+.risk-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.risk-summary li {
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+.risk-title {
+  min-width: 220px;
+  font-weight: 600;
+}
+.risk-detail {
+  max-width: 56ch;
+  color: var(--muted-foreground);
+}
+.risk-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.risk-group {
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.risk-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  cursor: pointer;
+  font-weight: 700;
+}
+.risk-group .table-scroll {
+  border-top: 1px solid var(--border-soft);
+}
+.risk-group__more {
+  padding: 0 var(--space-3) var(--space-3);
+}

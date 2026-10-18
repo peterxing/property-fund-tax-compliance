@@ -42,6 +42,7 @@ const strip = (checks: string | null, queries: string | null): string[] => [
   "Statements",
   checks ? `Checks ${checks}` : "Checks",
   queries ? `Queries ${queries}` : "Queries",
+  "Versions",
   "Audit trail",
   "Rules",
 ];
@@ -160,7 +161,7 @@ async function nextDownload(app: MountedApp): Promise<void> {
 
 // ---------------------------------------------------------------------------------------------------------------- the tab strip
 describe("the tab strip", () => {
-  it("is the Review panel's tab list with the six tabs, the exceptions and the open queries on the badges, and one tab stop", async () => {
+  it("is the Review panel's tab list with the review tabs, the exceptions and the open queries on the badges, and one tab stop", async () => {
     const app = await open("southbank");
     const review = app.byRole("region", "Review");
     assert.ok(review.contains(app.byRole("tablist", "Review")));
@@ -168,7 +169,7 @@ describe("the tab strip", () => {
     assert.equal(selectedTab(app), "Withholding");
     assert.deepEqual(
       app.allByRole("tab").map((tab) => tab.getAttribute("tabindex")),
-      ["0", "-1", "-1", "-1", "-1", "-1"],
+      ["0", "-1", "-1", "-1", "-1", "-1", "-1"],
     );
     assert.ok(review.contains(panel(app)));
     assert.equal(accessibleName(panel(app)), "Withholding");
@@ -202,6 +203,7 @@ describe("the tab strip", () => {
       ["&tab=statement", "Statements"],
       ["&tab=checks", "Checks 2 exceptions"],
       ["&tab=queries", "Queries 1 open"],
+      ["&tab=versions", "Versions"],
       ["&tab=audit", "Audit trail"],
       ["&tab=audit-trail", "Audit trail"],
       ["&tab=rules", "Rules"],
@@ -217,6 +219,26 @@ describe("the tab strip", () => {
     }
   });
 
+  it("shows seeded calculation versions and compares a row with current inputs", async () => {
+    const app = await open("harbourline", "versions");
+    assert.equal(selectedTab(app), "Versions");
+    assert.match(flatText(panel(app)), /2 saved versions\./);
+    assert.equal(app.byRole("button", "Save version").classList.contains("btn--secondary"), true);
+    const table = app.byRole("table", "Calculation versions");
+    assert.deepEqual(
+      Array.from(table.querySelectorAll("thead th")).map((th) => flatText(th)),
+      ["Label", "Trigger", "By", "At", "Hash", "Reason", "Action"],
+    );
+    assert.equal(table.querySelectorAll("tbody tr").length, 2);
+    await app.click(app.allByRole("button", "Compare with current")[0]!);
+    const diff = app.byRole("table", /^Version comparison/);
+    assert.deepEqual(
+      Array.from(diff.querySelectorAll("thead th")).map((th) => [flatText(th), th.classList.contains("num")]),
+      [["Line", false], ["Then", true], ["Now", true], ["Change", true]],
+    );
+    assert.match(flatText(diff), /Hashes match/);
+  });
+
   it("selects a tab with a click, writes it to the hash with the fund and leaves focus on the tab", async () => {
     const app = await open("southbank");
     const checks = app.byRole("tab", "Checks 2 exceptions");
@@ -226,7 +248,7 @@ describe("the tab strip", () => {
     expectSame(document.activeElement, checks, "focus stays on the tab that was clicked");
     assert.deepEqual(
       app.allByRole("tab").map((tab) => tab.getAttribute("tabindex")),
-      ["-1", "-1", "0", "-1", "-1", "-1"],
+      ["-1", "-1", "0", "-1", "-1", "-1", "-1"],
     );
     await app.click(app.byRole("tab", "Withholding"));
     assert.deepEqual(hashParams(app), { fund: "southbank", tab: "withholding" });

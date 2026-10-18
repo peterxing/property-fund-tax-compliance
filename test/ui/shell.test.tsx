@@ -69,7 +69,7 @@ function checkChrome(app: MountedApp, persona: Persona, route: RouteFixture): vo
   assert.equal(accessibleName(skip), "Skip to fund workspace");
 
   const links = navLinks(app);
-  assert.deepEqual(links.map((link) => accessibleName(link)), ROUTES.map((r) => r.label), "the eight workspaces, in order");
+  assert.deepEqual(links.map((link) => accessibleName(link)), ROUTES.map((r) => r.label), "the workspaces, in order");
   assert.deepEqual(
     links.filter((link) => link.hasAttribute("aria-current")).map((link) => `${accessibleName(link)}=${link.getAttribute("aria-current")}`),
     [`${route.label}=page`],
@@ -349,8 +349,12 @@ describe("moving between workspaces and funds", () => {
   it("Tab goes from the skip link through the workspaces and the persona and jurisdiction controls to the fund rail", async () => {
     const app = await mountApp();
     const names = tabOrder(app.container).map((el) => accessibleName(el));
-    assert.deepEqual(names.slice(0, 11), ["Skip to fund workspace", ...ROUTES.map((r) => r.label), "Working as", "All"]);
-    assert.match(names[11] ?? "", /^Fund:\s*Harbourline Office Trust/, "then the rail's button: it names the open fund and, on a narrow screen, opens the list (the style sheet hides it from 900px up)");
-    assert.match(names[12] ?? "", /^Harbourline Office Trust/, "then the first fund of the rail");
+    assert.deepEqual(names.slice(0, ROUTES.length + 4), ["Skip to fund workspace", "Workspaces", ...ROUTES.map((r) => r.label), "Working as", "All"]);
+    assert.match(
+      names[ROUTES.length + 4] ?? "",
+      /^Fund:\s*Harbourline Office Trust/,
+      "then the rail's button: it names the open fund and, on a narrow screen, opens the list (the style sheet hides it from 900px up)",
+    );
+    assert.match(names[ROUTES.length + 5] ?? "", /^Harbourline Office Trust/, "then the first fund of the rail");
   });
 });

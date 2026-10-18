@@ -71,10 +71,10 @@ function queryOf(patch: Partial<Query> = {}): Query {
 
 // ---------------------------------------------------------------------------------------------------------------- tabs
 describe("which tab the hash opens", () => {
-  it("lists the six tabs in the order of the reference", () => {
+  it("lists the review tabs in order", () => {
     assert.deepEqual(
       REVIEW_TABS.map((tab) => tab.label),
-      ["Withholding", "Statements", "Checks", "Queries", "Audit trail", "Rules"],
+      ["Withholding", "Statements", "Checks", "Queries", "Versions", "Audit trail", "Rules"],
     );
     assert.equal(DEFAULT_REVIEW_TAB, "withholding");
   });

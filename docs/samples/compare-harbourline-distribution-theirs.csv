@@ -1,0 +1,8 @@
+Reference,Description,Amount
+Distribution component extract,,
+component.ausOtherIncome,Australian income — other,"A$48,318,400.00"
+component.cleanBuilding,Clean building MIT income,"A$6,205,300.50"
+component.interest,Australian interest,"A$1,197,400.00"
+component.discountGainTarp,Discounted capital gains — TARP,"(A$3,912,000.00)"
+,AMIT CGT gross up TARP,"A$3,912,000.00"
+legacy.reserve,Legacy platform rounding reserve,A$123.00

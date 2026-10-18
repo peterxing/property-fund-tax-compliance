@@ -8,8 +8,17 @@ export type AppPath =
   | "/tax-returns"
   | "/investor-reporting"
   | "/cost-base"
+  | "/gst"
+  | "/property-taxes"
+  | "/assets"
+  | "/compare"
   | "/bulk-review"
   | "/analytics"
+  | "/calendar"
+  | "/risks"
+  | "/calculators"
+  | "/rules"
+  | "/data"
   | "/access";
 export type RoutePath = AppPath | "/_gallery";
 export type WorkspaceId =
@@ -18,8 +27,17 @@ export type WorkspaceId =
   | "tax-returns"
   | "investor-reporting"
   | "cost-base"
+  | "gst"
+  | "property-taxes"
+  | "assets"
+  | "compare"
   | "bulk-review"
   | "analytics"
+  | "calendar"
+  | "risks"
+  | "calculators"
+  | "rules"
+  | "data"
   | "access";
 
 export interface RouteDef {
@@ -36,8 +54,17 @@ export const ROUTES: readonly RouteDef[] = [
   { path: "/tax-returns", id: "tax-returns", label: "Tax returns", scope: "fund" },
   { path: "/investor-reporting", id: "investor-reporting", label: "Investor reporting", scope: "fund" },
   { path: "/cost-base", id: "cost-base", label: "Cost base & CGT", scope: "fund" },
+  { path: "/gst", id: "gst", label: "GST & BAS", scope: "fund" },
+  { path: "/property-taxes", id: "property-taxes", label: "Property taxes", scope: "fund" },
+  { path: "/assets", id: "assets", label: "Assets & allowances", scope: "fund" },
+  { path: "/compare", id: "compare", label: "Compare", scope: "fund" },
   { path: "/bulk-review", id: "bulk-review", label: "Bulk review", scope: "portfolio" },
   { path: "/analytics", id: "analytics", label: "Analytics", scope: "portfolio" },
+  { path: "/calendar", id: "calendar", label: "Compliance calendar", scope: "portfolio" },
+  { path: "/risks", id: "risks", label: "Risk register", scope: "portfolio" },
+  { path: "/calculators", id: "calculators", label: "Calculators", scope: "portfolio" },
+  { path: "/rules", id: "rules", label: "Rules & sources", scope: "portfolio" },
+  { path: "/data", id: "data", label: "Data", scope: "portfolio" },
   { path: "/access", id: "access", label: "Access", scope: "portfolio" },
 ];
 

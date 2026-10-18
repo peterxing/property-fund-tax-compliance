@@ -23,8 +23,8 @@ export function TrialBalanceBody({ fund }: { fund: Fund }) {
   return (
     <>
       <HeaderPanel fund={fund} view={view} canEdit={canEdit} lockNote={lockNote} />
-      <div className="tb-pair">
-        <BookToTaxPanel fund={fund} view={view} />
+      <BookToTaxPanel fund={fund} view={view} />
+      <div className="tb-adjustments-wrap">
         <AdjustmentsPanel fund={fund} view={view} canEdit={canEdit} />
       </div>
       <ComponentsPanel fund={fund} view={view} canEdit={canEdit} lockNote={lockNote} />

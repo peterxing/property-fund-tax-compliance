@@ -158,6 +158,26 @@ describe("fund rail layout (shell.css)", () => {
   });
 });
 
+describe("workspace navigation layout (shell.css)", () => {
+  const rules = read("../../src/app/shell/shell.css");
+  const wide = "@container app-header (min-width: 1100px)";
+
+  it("starts as one compact menu and opens without changing the header row height", () => {
+    assert.equal(declared(rules, ".app-nav", "position"), "relative");
+    assert.equal(declared(rules, ".app-nav__toggle", "display"), "inline-flex");
+    assert.equal(declared(rules, ".app-nav__panel", "position"), "absolute");
+    assert.equal(declared(rules, ".app-nav__panel", "display"), "none");
+    assert.equal(declared(rules, ".app-nav--open .app-nav__panel", "display"), "grid");
+  });
+
+  it("shows the grouped links directly from 1100px up", () => {
+    assert.equal(declared(rules, ".app-nav__toggle", "display", wide), "none");
+    assert.equal(declared(rules, ".app-nav__panel", "position", wide), "static");
+    assert.equal(declared(rules, ".app-nav__panel", "display", wide), "grid");
+    assert.equal(declared(rules, ".app-nav__group", "grid-template-columns", wide), "max-content minmax(0, 1fr)");
+  });
+});
+
 describe("boxes that scroll sideways, and screen-reader-only text (components.css, base.css)", () => {
   const components = read("../../src/app/styles/components.css");
   const base = read("../../src/app/styles/base.css");

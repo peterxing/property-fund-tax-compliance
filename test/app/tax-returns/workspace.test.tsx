@@ -215,7 +215,14 @@ describe("recording a lodgment", () => {
 const REOPENED_NOTE = "This fund was reopened after it was lodged. Sign it off again and lodge an amended return if any figure changes.";
 
 /** Presses a button of the fund header, the way a person does. */
-const press = (app: MountedApp, label: string): Promise<void> => app.click(app.byRole("button", label));
+/** Presses a button; "Reopen" also gives the reason its dialog asks for and confirms. */
+async function press(app: MountedApp, label: string): Promise<void> {
+  await app.click(app.byRole("button", label));
+  if (label === "Reopen") {
+    await app.type(app.byLabel("Reason") as HTMLTextAreaElement, "Correcting signed-off inputs");
+    await app.click(app.$(".dialog__footer .btn--primary"));
+  }
+}
 const chipTone = (app: MountedApp): string => (app.$(".ret-chip").classList.contains("tag--good") ? "good" : app.$(".ret-chip").classList.contains("tag--warn") ? "warn" : "other");
 const lodgedLine = (app: MountedApp): string => flatText(app.$(".ret-lodged--reopened .ret-lodged__summary"));
 

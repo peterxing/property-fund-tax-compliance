@@ -1,0 +1,23 @@
+.ptax {
+  display: grid;
+  gap: 1rem;
+}
+
+.ptax-note,
+.ptax-basis small,
+.muted {
+  color: var(--muted-foreground);
+}
+
+.ptax .dt th span,
+.ptax .dt th small,
+.ptax-basis,
+.ptax-basis small {
+  display: block;
+}
+
+.ptax-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}

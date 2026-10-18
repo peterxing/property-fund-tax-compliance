@@ -50,12 +50,13 @@ await build({
 const entry = (await import(pathToFileURL(outFile).href)) as typeof Entry;
 
 let container: HTMLElement;
-let mounted: Entry.MountedRail | null = null;
+let mounted: { unmount(): void } | null = null;
 const chosen: string[] = [];
 
 const mount = (selectedId: string | null = "southbank"): Entry.MountedRail => {
-  mounted = entry.mountRail(container, selectedId, (fundId) => chosen.push(fundId));
-  return mounted;
+  const rail = entry.mountRail(container, selectedId, (fundId) => chosen.push(fundId));
+  mounted = rail;
+  return rail;
 };
 const click = (target: Element, init: MouseEventInit = {}): void =>
   entry.interact(() => {
@@ -93,6 +94,59 @@ describe("fund rail disclosure, in use", () => {
     click(rail.toggle);
     assert.equal(expanded(rail), "false");
     assert.equal(rail.nav.classList.contains("fund-rail--open"), false);
+  });
+
+  describe("workspace navigation menu, in use", () => {
+    const mount = (): Entry.MountedHeader => {
+      const header = entry.mountHeader(container);
+      mounted = header;
+      return header;
+    };
+
+    it("opens and folds from the compact Workspaces button", () => {
+      const header = mount();
+      assert.equal(header.toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(header.nav.classList.contains("app-nav--open"), false);
+      click(header.toggle);
+      assert.equal(header.toggle.getAttribute("aria-expanded"), "true");
+      assert.equal(header.nav.classList.contains("app-nav--open"), true);
+      click(header.toggle);
+      assert.equal(header.toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(header.nav.classList.contains("app-nav--open"), false);
+    });
+
+    it("closes on Escape and returns focus to the Workspaces button", () => {
+      const header = mount();
+      click(header.toggle);
+      const link = header.links[5]!;
+      link.focus();
+      press(link, "Escape");
+      assert.equal(header.toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(window.document.activeElement, header.toggle);
+    });
+
+    it("keeps real links for all grouped workspaces and closes after a normal link click", () => {
+      const header = mount();
+      assert.equal(header.links.length, 17);
+      assert.deepEqual(
+        header.links.slice(0, 10).map((link) => link.getAttribute("href")),
+        [
+          "#/?fund=southbank",
+          "#/trial-balance?fund=southbank",
+          "#/tax-returns?fund=southbank",
+          "#/investor-reporting?fund=southbank",
+          "#/cost-base?fund=southbank",
+          "#/gst?fund=southbank",
+          "#/property-taxes?fund=southbank",
+          "#/assets?fund=southbank",
+          "#/compare?fund=southbank",
+          "#/bulk-review",
+        ],
+      );
+      click(header.toggle);
+      click(header.links[6]!);
+      assert.equal(header.toggle.getAttribute("aria-expanded"), "false");
+    });
   });
 
   it("folds when a fund is chosen, reports the choice, and returns focus to the button", () => {

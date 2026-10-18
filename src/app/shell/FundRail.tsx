@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { fundGroups } from "../../domain/index.ts";
+import { roleCan } from "../../domain/permissions.ts";
 import type { FundGroup, FundId } from "../../domain/types.ts";
 import { railDetail } from "../labels.ts";
 import { buildHash, routeForFund, useRoute } from "../router.ts";
@@ -19,6 +20,8 @@ export interface FundRailViewProps {
   emptyMessage?: string;
   /** Below 900px the list starts folded away; this starts it open instead. It makes no difference from 900px up, where the list is always shown. */
   defaultOpen?: boolean;
+  /** Shows the Data page funds tab link for personas who can add or edit funds. */
+  canManageFunds?: boolean;
 }
 
 /**
@@ -35,6 +38,7 @@ export function FundRailView({
   onSelect,
   emptyMessage = "No funds assigned to this persona.",
   defaultOpen = false,
+  canManageFunds = false,
 }: FundRailViewProps) {
   const uid = useId();
   const panelId = `${uid}-panel`;
@@ -45,6 +49,14 @@ export function FundRailView({
     return (
       <nav className="fund-rail" aria-label="Funds">
         <p className="fund-rail__empty">{emptyMessage}</p>
+        {canManageFunds ? (
+          <p className="fund-rail__manage">
+            <a className="fund-rail__manage-link" href="#/data?tab=funds">
+              <Icon name="database" />
+              <span>Manage funds</span>
+            </a>
+          </p>
+        ) : null}
       </nav>
     );
   }
@@ -132,6 +144,14 @@ export function FundRailView({
             </div>
           );
         })}
+        {canManageFunds ? (
+          <p className="fund-rail__manage">
+            <a className="fund-rail__manage-link" href="#/data?tab=funds">
+              <Icon name="database" />
+              <span>Manage funds</span>
+            </a>
+          </p>
+        ) : null}
       </div>
     </nav>
   );
@@ -152,6 +172,7 @@ export function FundRail({ selectedId }: { selectedId: FundId | null }) {
       hrefFor={(fundId) => buildHash(routeForFund(route, fundId))}
       onSelect={selectFund}
       emptyMessage={jurisdiction === "all" ? undefined : "No funds assigned to this persona in this jurisdiction."}
+      canManageFunds={roleCan(ctx.user.role, "manage-access") || roleCan(ctx.user.role, "edit")}
     />
   );
 }

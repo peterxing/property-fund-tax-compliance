@@ -107,12 +107,12 @@ export function sampleStates(): Array<[string, AppData]> {
   const queried = ok(s2, "n-pillai", { type: "raise-query", fundId: "telok-ayer", subject: "Withholding rate", message: "Please confirm the rate used." });
   const s3 = chain(s2, [
     ["a-moreno", { type: "sign-off", fundId: "kallang" }],
-    ["a-moreno", { type: "reopen", fundId: "loyang" }],
+    ["a-moreno", { type: "reopen", fundId: "loyang", reason: "Correcting signed-off inputs" }],
     ["a-moreno", { type: "set-user-funds", userId: "s-lim", funds: ["telok-ayer", "meranti", "kallang"] }],
   ]);
   const resubmitted = chain(s0, [
-    ["a-moreno", { type: "reopen", fundId: "harbourline" }],
-    ["a-moreno", { type: "reopen", fundId: "wattle" }],
+    ["a-moreno", { type: "reopen", fundId: "harbourline", reason: "Correcting signed-off inputs" }],
+    ["a-moreno", { type: "reopen", fundId: "wattle", reason: "Correcting signed-off inputs" }],
     ["r-okafor", { type: "submit", fundId: "harbourline" }],
     ["r-okafor", { type: "submit", fundId: "wattle" }],
   ]);

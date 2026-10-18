@@ -15,7 +15,8 @@
 //            tab-order skip link to #main and a focusable #main, a document title
 //   (h) console errors and warnings are checked by the harness after every test (harness.tsx), not here.
 //
-// The shell's documented structure these audits encode: header.app-header > h1.app-title (the only h1); nav "Workspaces" (8 links); the
+// The shell's documented structure these audits encode: header.app-header > h1.app-title (the only h1); nav "Workspaces" (a menu button,
+// then one link per workspace in a Fund and a Portfolio group); the
 // fund rail nav "Funds"; main#main[tabindex=-1] holding h2.fund-header__name (fund workspaces) or h2.portfolio__title (portfolio
 // workspaces) and h3 panels; footer.app-footer; fund header and panel headers are <header> elements inside main, which are not banners.
 import { accessibleName, accessibleDescription, allByRole, describe, isHiddenFromAssistiveTech, isTabStop, pathOf, renderedElements, roleOf, tabOrder } from "./dom.ts";

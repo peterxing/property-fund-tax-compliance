@@ -37,6 +37,8 @@ export interface SgTbCalc {
   distributions: Cents;
   capitalAllowances: Cents;
   taxableSpecifiedIncome: Cents;
+  manualAdjustments: Array<{ label: string; amount: Cents; reason: string }>;
+  prior?: SgTbCalc;
 }
 
 export function capitalAllowancesOf(data: AppData, fund: SgFund): Cents {
@@ -46,14 +48,18 @@ export function capitalAllowancesOf(data: AppData, fund: SgFund): Cents {
 /** Flips a debit balance to a credit one (and back) without producing negative zero for an empty category. */
 const negate = (n: Cents): Cents => (n === 0 ? 0 : -n);
 
-export function sgTbCalc(data: AppData, fund: SgFund): SgTbCalc {
+function sgTbCalcFor(data: AppData, fund: SgFund, field: "current" | "prior", includeCurrentOnlyAdjustments: boolean): SgTbCalc {
   const rows = data.tbRows.filter((r) => r.fundId === fund.id);
   const known = new Set(data.tbCategories.SG.map((c) => c.id));
-  const sumCat = (cat: string) => sumOf(rows.filter((r) => r.category === cat).map((r) => r.current));
+  const sumCat = (cat: string) => sumOf(rows.filter((r) => r.category === cat).map((r) => r[field]));
   const rent = negate(sumCat("rent"));
   const interest = negate(sumCat("interest-income"));
   const deductible = sumCat("deductible-expense");
-  const capitalAllowances = capitalAllowancesOf(data, fund);
+  const capitalAllowances = includeCurrentOnlyAdjustments ? capitalAllowancesOf(data, fund) : 0;
+  const manualAdjustments = includeCurrentOnlyAdjustments
+    ? data.manualAdjustments.filter((a) => a.fundId === fund.id && a.component === "taxableSpecifiedIncome").map((a) => ({ label: a.label, amount: a.amount, reason: a.reason }))
+    : [];
+  const manual = sumOf(manualAdjustments.map((a) => a.amount));
   const plRows = rows.filter((r) => (PROFIT_AND_LOSS as readonly string[]).includes(r.category));
   return {
     rows,
@@ -73,11 +79,22 @@ export function sgTbCalc(data: AppData, fund: SgFund): SgTbCalc {
     totalExpenses: sumOf(plRows.filter((r) => r.current > 0).map((r) => r.current)),
     distributions: sumCat("distributions"),
     capitalAllowances,
-    taxableSpecifiedIncome: Math.max(0, roundToDollar(rent + interest - deductible - capitalAllowances)),
+    taxableSpecifiedIncome: Math.max(0, roundToDollar(rent + interest - deductible - capitalAllowances) + manual),
+    manualAdjustments,
   };
 }
 
-function bookToTax(calc: SgTbCalc): TbView["bookToTax"] {
+export function sgTbCalc(data: AppData, fund: SgFund): SgTbCalc {
+  const current = sgTbCalcFor(data, fund, "current", true);
+  return { ...current, prior: sgTbCalcFor(data, fund, "prior", false) };
+}
+
+function withPrior(row: BookToTaxRow, prior: Cents): BookToTaxRow {
+  const change = row.amount - prior;
+  return { ...row, prior, change, changePct: prior === 0 ? null : (change / Math.abs(prior)) * 100 };
+}
+
+function bookToTaxRows(calc: SgTbCalc): BookToTaxRow[] {
   const rows: BookToTaxRow[] = [{ label: "Net profit per accounts", amount: calc.netProfit, kind: "start" }];
   // Zero lines are left out; the reference hides anything under 50 cents.
   const add = (label: string, amount: Cents) => {
@@ -90,12 +107,25 @@ function bookToTax(calc: SgTbCalc): TbView["bookToTax"] {
   add("Add: non-deductible expenses", calc.nonDeductible);
   add("Less: capital allowances", -calc.capitalAllowances);
   add("Less: tax-exempt income", -calc.exempt);
+  for (const adjustment of calc.manualAdjustments) add(`Manual adjustment: ${adjustment.label}`, adjustment.amount);
+  return rows;
+}
+
+function bookToTax(calc: SgTbCalc): TbView["bookToTax"] {
+  const priorRows = new Map((calc.prior ? bookToTaxRows(calc.prior) : []).map((row) => [row.label, row.amount]));
+  const rows = bookToTaxRows(calc).map((row) => withPrior(row, priorRows.get(row.label) ?? 0));
   const result: TbView["bookToTax"] = {
     title: "Reconciliation of accounting profit to taxable income",
     rows,
     resultLabel: "Taxable specified income",
     result: calc.taxableSpecifiedIncome,
   };
+  if (calc.prior) {
+    const change = calc.taxableSpecifiedIncome - calc.prior.taxableSpecifiedIncome;
+    result.resultPrior = calc.prior.taxableSpecifiedIncome;
+    result.resultChange = change;
+    result.resultChangePct = calc.prior.taxableSpecifiedIncome === 0 ? null : (change / Math.abs(calc.prior.taxableSpecifiedIncome)) * 100;
+  }
   // The view has one slot for the amount available to distribute; a divestment gain is preferred to exempt income when both exist.
   if (calc.gain > 0) result.extra = { label: "Divestment gain available for capital distribution", amount: calc.gain };
   else if (calc.exempt > 0) result.extra = { label: "Tax-exempt income available to distribute", amount: calc.exempt };

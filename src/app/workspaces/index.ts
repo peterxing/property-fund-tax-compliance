@@ -10,6 +10,15 @@ import Distributions from "./Distributions.tsx";
 import InvestorReporting from "./InvestorReporting.tsx";
 import TaxReturns from "./TaxReturns.tsx";
 import TrialBalance from "./TrialBalance.tsx";
+import Gst from "./Gst.tsx";
+import PropertyTaxes from "./PropertyTaxes.tsx";
+import Assets from "./Assets.tsx";
+import Compare from "./Compare.tsx";
+import Calendar from "./Calendar.tsx";
+import Risks from "./Risks.tsx";
+import Calculators from "./Calculators.tsx";
+import Rules from "./Rules.tsx";
+import Data from "./Data.tsx";
 
 export interface Workspace extends RouteDef {
   icon: IconName;
@@ -22,8 +31,17 @@ const COMPONENTS: Record<WorkspaceId, ComponentType> = {
   "tax-returns": TaxReturns,
   "investor-reporting": InvestorReporting,
   "cost-base": CostBase,
+  gst: Gst,
+  "property-taxes": PropertyTaxes,
+  assets: Assets,
+  compare: Compare,
   "bulk-review": BulkReview,
   analytics: Analytics,
+  calendar: Calendar,
+  risks: Risks,
+  calculators: Calculators,
+  rules: Rules,
+  data: Data,
   access: Access,
 };
 

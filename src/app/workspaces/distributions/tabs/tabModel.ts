@@ -19,13 +19,14 @@ const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" :
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 
 // ---------------------------------------------------------------------------------------------------- tabs
-export type ReviewTabId = "withholding" | "statements" | "checks" | "queries" | "audit" | "rules";
+export type ReviewTabId = "withholding" | "statements" | "checks" | "queries" | "versions" | "audit" | "rules";
 
 export const REVIEW_TABS: readonly { id: ReviewTabId; label: string }[] = [
   { id: "withholding", label: "Withholding" },
   { id: "statements", label: "Statements" },
   { id: "checks", label: "Checks" },
   { id: "queries", label: "Queries" },
+  { id: "versions", label: "Versions" },
   { id: "audit", label: "Audit trail" },
   { id: "rules", label: "Rules" },
 ];
@@ -41,6 +42,7 @@ const TAB_BY_PARAM = new Map<string, ReviewTabId>([
   ["statement", "statements"],
   ["checks", "checks"],
   ["queries", "queries"],
+  ["versions", "versions"],
   ["audit", "audit"],
   ["audit-trail", "audit"],
   ["rules", "rules"],

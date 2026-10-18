@@ -111,7 +111,7 @@ export function workflowAction(action: ActionId, fundId: string): Action | null 
     case "sign-off":
       return { type: "sign-off", fundId };
     case "reopen":
-      return { type: "reopen", fundId };
+      return null;
     default:
       return null;
   }
@@ -154,8 +154,17 @@ export const WORKSPACE_ICON: Record<WorkspaceId, IconName> = {
   "tax-returns": "landmark",
   "investor-reporting": "file-text",
   "cost-base": "scale",
+  gst: "receipt",
+  "property-taxes": "building",
+  assets: "layers",
+  compare: "columns",
   "bulk-review": "list-checks",
   analytics: "bar-chart",
+  calendar: "calendar",
+  risks: "flag",
+  calculators: "calculator",
+  rules: "book",
+  data: "database",
   access: "users",
 };
 

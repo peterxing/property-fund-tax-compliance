@@ -8,6 +8,7 @@ import { ChecksTab } from "./ChecksTab.tsx";
 import { QueriesTab } from "./QueriesTab.tsx";
 import { RulesTab } from "./RulesTab.tsx";
 import { StatementsTab } from "./StatementsTab.tsx";
+import { VersionsTab } from "./VersionsTab.tsx";
 import { WithholdingTab } from "./WithholdingTab.tsx";
 import {
   REVIEW_TABS,
@@ -93,6 +94,9 @@ export function ReviewTabs({ fundId }: { fundId: string }) {
         </Tabs.Panel>
         <Tabs.Panel id="queries">
           <QueriesTab fundId={fundId} />
+        </Tabs.Panel>
+        <Tabs.Panel id="versions">
+          <VersionsTab fundId={fundId} />
         </Tabs.Panel>
         <Tabs.Panel id="audit">
           <AuditTab fundId={fundId} />

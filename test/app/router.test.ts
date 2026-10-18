@@ -16,20 +16,38 @@ import {
 } from "../../src/app/router.ts";
 
 describe("ROUTES", () => {
-  it("lists the eight workspaces in nav order with unique paths and ids", () => {
+  it("lists the workspaces in nav order with unique paths and ids", () => {
     assert.deepEqual(
       ROUTES.map((r) => r.label),
-      ["Distributions", "Trial balance", "Tax returns", "Investor reporting", "Cost base & CGT", "Bulk review", "Analytics", "Access"],
+      [
+        "Distributions",
+        "Trial balance",
+        "Tax returns",
+        "Investor reporting",
+        "Cost base & CGT",
+        "GST & BAS",
+        "Property taxes",
+        "Assets & allowances",
+        "Compare",
+        "Bulk review",
+        "Analytics",
+        "Compliance calendar",
+        "Risk register",
+        "Calculators",
+        "Rules & sources",
+        "Data",
+        "Access",
+      ],
     );
     assert.equal(new Set(ROUTES.map((r) => r.path)).size, ROUTES.length);
     assert.equal(new Set(ROUTES.map((r) => r.id)).size, ROUTES.length);
     assert.ok(ROUTES.every((r) => r.path.startsWith("/")));
   });
 
-  it("scopes the first five to a fund and the last three to the portfolio", () => {
+  it("scopes the first nine to a fund and the last eight to the portfolio", () => {
     assert.deepEqual(
       ROUTES.map((r) => r.scope),
-      ["fund", "fund", "fund", "fund", "fund", "portfolio", "portfolio", "portfolio"],
+      ["fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio"],
     );
   });
 
@@ -209,6 +227,7 @@ describe("sameRoute and routeLabel", () => {
   it("names every route", () => {
     assert.equal(routeLabel("/"), "Distributions");
     assert.equal(routeLabel("/cost-base"), "Cost base & CGT");
+    assert.equal(routeLabel("/data"), "Data");
     assert.equal(routeLabel(GALLERY_PATH), "Design gallery");
   });
 });

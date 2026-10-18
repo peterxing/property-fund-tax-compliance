@@ -159,12 +159,24 @@ export interface BookToTaxLine {
   label: string;
   amount: Cents;
   kind: BookToTaxRow["kind"];
+  prior?: Cents;
+  change?: Cents;
+  changePct?: number | null;
 }
 
 /** The reconciliation lines. AU already includes its result line; SG gives the result separately, so it is added when none is present. */
 export function bookToTaxLines(bookToTax: TbView["bookToTax"]): BookToTaxLine[] {
-  const lines: BookToTaxLine[] = bookToTax.rows.map((r) => ({ label: r.label, amount: r.amount, kind: r.kind }));
-  if (!lines.some((l) => l.kind === "result")) lines.push({ label: bookToTax.resultLabel, amount: bookToTax.result, kind: "result" });
+  const lines: BookToTaxLine[] = bookToTax.rows.map((r) => ({ label: r.label, amount: r.amount, kind: r.kind, prior: r.prior, change: r.change, changePct: r.changePct }));
+  if (!lines.some((l) => l.kind === "result")) {
+    lines.push({
+      label: bookToTax.resultLabel,
+      amount: bookToTax.result,
+      kind: "result",
+      prior: bookToTax.resultPrior,
+      change: bookToTax.resultChange,
+      changePct: bookToTax.resultChangePct,
+    });
+  }
   return lines;
 }
 

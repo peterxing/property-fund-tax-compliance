@@ -1,4 +1,4 @@
-import { useId, useRef, type Ref } from "react";
+import { useId, useRef, useState, type Ref } from "react";
 import type { ActionId, Fund, WorkflowStatus } from "../../domain/types.ts";
 import { integer } from "../../domain/format.ts";
 import {
@@ -17,6 +17,7 @@ import { useAnnounce } from "../ui/LiveRegion.tsx";
 import { useDispatch, useFundCalc, useWorkflow } from "../state.tsx";
 import { MarketBadge, StatusChip } from "../ui/Badge.tsx";
 import { Button } from "../ui/Button.tsx";
+import { Dialog, Field, TextArea } from "../ui/index.ts";
 import { cls } from "../ui/cls.ts";
 import { Icon } from "../ui/icons.tsx";
 
@@ -129,8 +130,15 @@ export function FundHeader({ fund }: { fund: Fund }) {
   const dispatch = useDispatch();
   const announce = useAnnounce();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
+  const [reopenError, setReopenError] = useState<string | null>(null);
 
   const onAction = (actionId: ActionId): void => {
+    if (actionId === "reopen") {
+      setReopenOpen(true);
+      return;
+    }
     const action = workflowAction(actionId, fund.id);
     if (!action) return;
     const result = dispatch(action);
@@ -139,21 +147,68 @@ export function FundHeader({ fund }: { fund: Fund }) {
     // The button that was pressed may disappear or change; if focus fell back to the page, put it on the fund heading.
     window.setTimeout(() => {
       const active = document.activeElement;
-      if (!active || active === document.body || !active.isConnected) headingRef.current?.focus();
+      if (!active || active === document.body || active.id === "main" || !active.isConnected) headingRef.current?.focus();
+    }, 0);
+  };
+
+  const closeReopen = (): void => {
+    setReopenOpen(false);
+    setReopenError(null);
+    setReopenReason("");
+  };
+
+  const confirmReopen = (): void => {
+    const length = reopenReason.trim().length;
+    if (length < 5 || length > 500) {
+      setReopenError("Enter a reason between 5 and 500 characters.");
+      return;
+    }
+    const result = dispatch({ type: "reopen", fundId: fund.id, reason: reopenReason });
+    if (!result.ok) return;
+    closeReopen();
+    announce(workflowDoneMessage("reopen", fund.name));
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body || active.id === "main" || !active.isConnected) headingRef.current?.focus();
     }, 0);
   };
 
   return (
-    <FundHeaderView
-      fund={fund}
-      status={workflow.status}
-      due={dueFact(fund, calc)}
-      governanceLabel={workflow.governance.label}
-      chain={approvalChain(workflow)}
-      openQueries={workflow.openQueries}
-      actions={workflow.available}
-      onAction={onAction}
-      headingRef={headingRef}
-    />
+    <>
+      <FundHeaderView
+        fund={fund}
+        status={workflow.status}
+        due={dueFact(fund, calc)}
+        governanceLabel={workflow.governance.label}
+        chain={approvalChain(workflow)}
+        openQueries={workflow.openQueries}
+        actions={workflow.available}
+        onAction={onAction}
+        headingRef={headingRef}
+      />
+      <Dialog
+        open={reopenOpen}
+        onClose={closeReopen}
+        title="Reopen signed-off fund"
+        description="Record why sign-off is being removed before the components are unlocked."
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeReopen}>Cancel</Button>
+            <Button variant="primary" onClick={confirmReopen}>Reopen</Button>
+          </>
+        }
+      >
+        <Field label="Reason" hint="Required, 5 to 500 characters." error={reopenError ?? undefined} required>
+          <TextArea
+            value={reopenReason}
+            rows={4}
+            onChange={(event) => {
+              setReopenReason(event.currentTarget.value);
+              if (reopenError) setReopenError(null);
+            }}
+          />
+        </Field>
+      </Dialog>
+    </>
   );
 }

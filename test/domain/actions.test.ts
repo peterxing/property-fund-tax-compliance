@@ -127,7 +127,7 @@ test("a fund can be edited again once it has been returned or reopened", () => {
   data = ok(data, "n-pillai", { type: "return", fundId: "meranti" });
   data = ok(data, "w-l-teo", inputs("meranti", { capitalDistribution: 1 }));
   assert.equal((fundOf(data, "meranti").inputs as unknown as Record<string, number>).capitalDistribution, 1);
-  data = ok(data, "a-moreno", { type: "reopen", fundId: "loyang" });
+  data = ok(data, "a-moreno", { type: "reopen", fundId: "loyang", reason: "Correcting signed-off inputs" });
   data = ok(data, "w-l-teo", { type: "update-remitted", fundId: "loyang", remitted: 100 });
   assert.equal(fundOf(data, "loyang").whtRemitted, 100);
 });
@@ -661,7 +661,7 @@ interface PureCase {
 }
 
 const PURE_CASES: PureCase[] = [
-  { name: "submit", userId: "w-l-teo", action: { type: "submit", fundId: "kallang" }, touches: ["audit", "funds"] },
+  { name: "submit", userId: "w-l-teo", action: { type: "submit", fundId: "kallang" }, touches: ["audit", "funds", "versions"] },
   { name: "return", userId: "n-pillai", action: { type: "return", fundId: "meranti" }, touches: ["approvals", "audit", "funds"] },
   { name: "approve", userId: "s-lim", action: approve("meranti", "agent"), touches: ["approvals", "audit"] },
   {
@@ -669,9 +669,9 @@ const PURE_CASES: PureCase[] = [
     userId: "a-moreno",
     action: { type: "sign-off", fundId: "meranti" },
     build: (d) => ok(d, "s-lim", approve("meranti", "agent")),
-    touches: ["audit", "funds"],
+    touches: ["audit", "funds", "versions"],
   },
-  { name: "reopen", userId: "a-moreno", action: { type: "reopen", fundId: "loyang" }, touches: ["approvals", "audit", "funds"] },
+  { name: "reopen", userId: "a-moreno", action: { type: "reopen", fundId: "loyang", reason: "Correcting signed-off inputs" }, touches: ["approvals", "audit", "funds", "versions"] },
   { name: "update-inputs", userId: "w-l-teo", action: inputs("telok-ayer", { capitalDistribution: 5 }), touches: ["audit", "funds"] },
   { name: "update-holder-units", userId: "w-l-teo", action: { type: "update-holder-units", fundId: "telok-ayer", holderId: "h-ta-1", units: 5 }, touches: ["audit", "holders"] },
   { name: "update-units-on-issue", userId: "w-l-teo", action: { type: "update-units-on-issue", fundId: "telok-ayer", units: 5 }, touches: ["audit", "funds"] },

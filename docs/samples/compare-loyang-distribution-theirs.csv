@@ -1,0 +1,6 @@
+Ref,Line item,Value
+Other system distribution export,,
+component.taxableDistributed,Taxable income distribution,"S$69,816,100.00"
+component.capitalDistribution,Return of capital distribution,"S$4,302,000.40"
+,Tax exempt income dist,S$125.00
+legacy.afterTax,After-tax income pool,"S$418,366.00"

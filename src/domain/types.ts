@@ -6,6 +6,12 @@
 // Erasable syntax only (no enums / namespaces / parameter properties): tests run directly under Node type-stripping.
 // =====================================================================================================================
 
+import type { FixedAsset, AssetAction } from "./assets/types.ts";
+import type { EntityAction } from "./entities/types.ts";
+import type { CalcVersion, GovernanceAction, ManualAdjustment } from "./governance/types.ts";
+import type { GstAction, GstEntry, GstFiling } from "./gst/types.ts";
+import type { PropertyTaxProfile, PtaxAction } from "./ptax/types.ts";
+
 export type Cents = number;
 export type ISODate = string; // "2026-06-30"
 export type LocalDateTime = string; // "2026-10-07T11:30:00" wall-clock, no zone, exactly as seeded
@@ -235,7 +241,8 @@ export interface SgLedgerSeed {
 }
 
 // ---------------------------------------------------------------------------------------------------- app state
-export const STATE_VERSION = 1 as const;
+/** Bumped to 2 when the GST, property tax, asset, version and manual-adjustment records were added: a v1 save falls back to the seed. */
+export const STATE_VERSION = 2 as const;
 
 export interface AppData {
   version: typeof STATE_VERSION;
@@ -255,6 +262,16 @@ export interface AppData {
   approvals: Approval[];
   lodgments: Lodgment[];
   users: User[];
+  /** GST & BAS: the GST ledger and recorded lodgments of GST returns / BAS (src/domain/gst). */
+  gstLedger: GstEntry[];
+  gstFilings: GstFiling[];
+  /** Property taxes and duties: one tax profile per property (src/domain/ptax). */
+  propertyProfiles: PropertyTaxProfile[];
+  /** Fixed asset register behind capital allowances, Div 40 and Div 43 (src/domain/assets). */
+  assets: FixedAsset[];
+  /** Saved calculation versions and manual tax adjustments with reasons (src/domain/governance). */
+  versions: CalcVersion[];
+  manualAdjustments: ManualAdjustment[];
 }
 
 export type JurisdictionFilter = "all" | Market;
@@ -434,6 +451,9 @@ export interface BookToTaxRow {
   label: string; // "Net profit per accounts" | "Add: fair value loss" | "Less: straight-line rent"
   amount: Cents; // signed
   kind: "start" | "add" | "less" | "subtotal" | "result";
+  prior?: Cents; // prior-year amount using the same TB-derived rules where available; current-year tax/manual adjustments are nil prior
+  change?: Cents;
+  changePct?: number | null;
 }
 export interface TbView {
   fundId: FundId;
@@ -442,7 +462,16 @@ export interface TbView {
   totalDebitsLessCredits: Cents;
   allMapped: boolean;
   matchesDistribution: boolean;
-  bookToTax: { title: string; rows: BookToTaxRow[]; resultLabel: string; result: Cents; extra?: { label: string; amount: Cents } };
+  bookToTax: {
+    title: string;
+    rows: BookToTaxRow[];
+    resultLabel: string;
+    result: Cents;
+    resultPrior?: Cents;
+    resultChange?: Cents;
+    resultChangePct?: number | null;
+    extra?: { label: string; amount: Cents };
+  };
   adjustments: Array<TaxAdjustmentDef & { amount: Cents }>;
   /**
    * Trial balance vs distribution, one row per EDITABLE input the trial balance can derive. `key` MUST be the AuInputs/SgInputs key
@@ -678,6 +707,8 @@ export interface DeadlineRow {
   fundName: string;
   obligation: string; // "AMMA statements" | "AIIR" | "Form UT" ...
   status: DeadlineStatus;
+  /** App route path where the obligation is handled ("/gst", "/tax-returns"); the calendar links there with ?fund=. */
+  workspace?: string;
 }
 /**
  * Analytics "Distribution scenario", uniform across markets so the UI renders it without branching.
@@ -729,7 +760,7 @@ export type Action =
   | { type: "return"; fundId: FundId }
   | { type: "approve"; fundId: FundId; level: ApprovalLevel }
   | { type: "sign-off"; fundId: FundId }
-  | { type: "reopen"; fundId: FundId }
+  | { type: "reopen"; fundId: FundId; reason: string }
   | { type: "update-inputs"; fundId: FundId; inputs: Partial<AuInputs> | Partial<SgInputs> }
   | { type: "update-holder-units"; fundId: FundId; holderId: string; units: number }
   | { type: "update-units-on-issue"; fundId: FundId; units: number }
@@ -744,7 +775,12 @@ export type Action =
   | { type: "reply-query"; fundId: FundId; queryId: string; message: string }
   | { type: "resolve-query"; fundId: FundId; queryId: string }
   | { type: "set-governance"; fundId: FundId; mode: GovernanceMode }
-  | { type: "set-user-funds"; userId: UserId; funds: "all" | FundId[] };
+  | { type: "set-user-funds"; userId: UserId; funds: "all" | FundId[] }
+  | GstAction
+  | PtaxAction
+  | AssetAction
+  | GovernanceAction
+  | EntityAction;
 
 export type ActionResult =
   | { ok: true; data: AppData }
@@ -765,4 +801,6 @@ export interface Store {
   selectFund(fundId: FundId | null): void;
   /** Re-seeds all demo data (keeps the current user). */
   reset(): void;
+  /** Replaces all data with a backup (validated exactly like saved state). Returns a user-readable problem, or null when it was loaded. */
+  importData(data: unknown): string | null;
 }

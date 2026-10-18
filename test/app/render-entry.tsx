@@ -51,6 +51,8 @@ export const scenes = {
       />,
     ),
   rail: () => html(<FundRailView groups={fx.FIXTURE_FUND_GROUPS} selectedId="southbank" hrefFor={railHref} />),
+  railManage: () => html(<FundRailView groups={fx.FIXTURE_FUND_GROUPS} selectedId="southbank" hrefFor={railHref} canManageFunds />),
+  railEmptyManage: () => html(<FundRailView groups={[]} selectedId={null} hrefFor={() => "#/"} canManageFunds />),
   railOpen: () => html(<FundRailView groups={fx.FIXTURE_FUND_GROUPS} selectedId="kurrajong" hrefFor={railHref} defaultOpen />),
   railQuiet: () => html(<FundRailView groups={fx.FIXTURE_FUND_GROUPS} selectedId="wattle" hrefFor={railHref} />),
   railNoSelection: () => html(<FundRailView groups={fx.FIXTURE_FUND_GROUPS} selectedId={null} hrefFor={railHref} />),
