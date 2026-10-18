@@ -70,7 +70,7 @@ Node 22 or later. There is no server, database or configuration. Your edits live
 * `src/app`: React 19 UI (esbuild, no UI kit): shell and design system, one folder per workspace, and CSV, XLSX and PDF exports that load on demand.
 * `test`: the engine suite, domain tests including golden tests against the reference figures, helper tests, and headless-DOM UI tests.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/REFERENCE-PARITY.md](docs/REFERENCE-PARITY.md) and [docs/rules](docs/rules).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/REFERENCE-PARITY.md](docs/REFERENCE-PARITY.md), [docs/rules](docs/rules) and [SECURITY-REVIEW.md](SECURITY-REVIEW.md).
 
 ## Relationship to the reference prototype
 

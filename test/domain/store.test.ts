@@ -369,6 +369,29 @@ test("a reducer that blows up leaves the state untouched", () => {
   assert.equal(calls, 0);
 });
 
+test("dispatch and dispatchBulk refuse to save a result the loader would reject, so the next visit cannot lose the data", () => {
+  // A record the saved-state schema refuses (an unknown key) that no reducer looks at: every otherwise valid change carries it along.
+  const data = seed();
+  const damaged: Persisted = { data: { ...data, funds: data.funds.map((fund) => (fund.id === "harbourline" ? { ...fund, note: "stray" } : fund)) }, ui: { ...defaultUi(), selectedFundId: "coastline" } };
+  const { storage, calls } = memoryStorage();
+  const store = make(storage, damaged);
+  let notified = 0;
+  store.subscribe(() => notified++);
+  const before = store.getState();
+
+  const single = store.dispatch(submit("coastline"));
+  assert.equal(single.ok, false);
+  assert.match(single.ok ? "" : single.reason, /^This change was not saved because it would leave the data unreadable \(.+\)\.$/);
+  const bulk = store.dispatchBulk("submit", ["coastline", "telok-ayer"]);
+  assert.deepEqual(bulk.done, []);
+  assert.deepEqual(bulk.skipped.map((entry) => entry.fundId), ["coastline", "telok-ayer"]);
+  assert.ok(bulk.skipped.every((entry) => /^Not saved: the result would leave the data unreadable \(.+\)\.$/.test(entry.reason)), JSON.stringify(bulk.skipped));
+
+  assert.equal(store.getState(), before, "the state is the very same object");
+  assert.equal(notified, 0, "nobody is told about a change that did not happen");
+  assert.equal(calls.set, 0, "and nothing was written to storage");
+});
+
 test("dispatchBulk applies the step to every eligible fund as one change", () => {
   const store = make(null);
   store.setUser("w-l-teo");
