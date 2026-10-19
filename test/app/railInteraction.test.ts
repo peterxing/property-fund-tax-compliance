@@ -127,9 +127,9 @@ describe("fund rail disclosure, in use", () => {
 
     it("keeps real links for all grouped workspaces and closes after a normal link click", () => {
       const header = mount();
-      assert.equal(header.links.length, 17);
+      assert.equal(header.links.length, 18);
       assert.deepEqual(
-        header.links.slice(0, 10).map((link) => link.getAttribute("href")),
+        header.links.slice(0, 11).map((link) => link.getAttribute("href")),
         [
           "#/?fund=southbank",
           "#/trial-balance?fund=southbank",
@@ -140,6 +140,7 @@ describe("fund rail disclosure, in use", () => {
           "#/property-taxes?fund=southbank",
           "#/assets?fund=southbank",
           "#/compare?fund=southbank",
+          "#/due-diligence?fund=southbank",
           "#/bulk-review",
         ],
       );

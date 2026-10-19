@@ -12,6 +12,8 @@ export const MAX_FUND_ID = 64;
 export const MAX_ACCOUNT = 64;
 /** Most accounts one trial balance import may carry (nine funds of this size still fit under MAX_ARRAY). */
 export const MAX_IMPORT_ROWS = 2_000;
+/** Most custom calendar obligations a portfolio may hold (the add reducer and the stored-state schema share this cap). */
+export const MAX_OBLIGATIONS = 500;
 /** Calendar years the app accepts in a date. */
 export const MIN_YEAR = 1900;
 export const MAX_YEAR = 2199;

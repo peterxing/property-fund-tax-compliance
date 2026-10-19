@@ -14,6 +14,7 @@ import Gst from "./Gst.tsx";
 import PropertyTaxes from "./PropertyTaxes.tsx";
 import Assets from "./Assets.tsx";
 import Compare from "./Compare.tsx";
+import DueDiligence from "./DueDiligence.tsx";
 import Calendar from "./Calendar.tsx";
 import Risks from "./Risks.tsx";
 import Calculators from "./Calculators.tsx";
@@ -35,6 +36,7 @@ const COMPONENTS: Record<WorkspaceId, ComponentType> = {
   "property-taxes": PropertyTaxes,
   assets: Assets,
   compare: Compare,
+  "due-diligence": DueDiligence,
   "bulk-review": BulkReview,
   analytics: Analytics,
   calendar: Calendar,

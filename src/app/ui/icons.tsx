@@ -10,6 +10,7 @@ export type IconName =
   | "building"
   | "layers"
   | "columns"
+  | "clipboard-check"
   | "calendar"
   | "flag"
   | "calculator"
@@ -196,6 +197,12 @@ const GLYPHS: Record<IconName, ReactNode> = {
   plus: <path d="M8 3v10M3 8h10" />,
   minus: <path d="M3 8h10" />,
   home: <path d="M2.5 7.5 8 2.5l5.5 5M4 6.8V13.5h8V6.8" />,
+  "clipboard-check": (
+    <>
+      <rect x="3" y="2.5" width="10" height="11.5" rx="1.5" />
+      <path d="M6 2.5V1.5h4v1M5.8 8.5l1.6 1.6 3-3.2" />
+    </>
+  ),
 };
 
 export const ICON_NAMES = Object.keys(GLYPHS) as IconName[];

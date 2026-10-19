@@ -20,6 +20,7 @@ export const ROUTES: readonly RouteFixture[] = [
   { hash: "#/property-taxes", path: "/property-taxes", label: "Property taxes", scope: "fund" },
   { hash: "#/assets", path: "/assets", label: "Assets & allowances", scope: "fund" },
   { hash: "#/compare", path: "/compare", label: "Compare", scope: "fund" },
+  { hash: "#/due-diligence", path: "/due-diligence", label: "Due diligence", scope: "fund" },
   { hash: "#/bulk-review", path: "/bulk-review", label: "Bulk review", scope: "portfolio" },
   { hash: "#/analytics", path: "/analytics", label: "Analytics", scope: "portfolio" },
   { hash: "#/calendar", path: "/calendar", label: "Compliance calendar", scope: "portfolio" },

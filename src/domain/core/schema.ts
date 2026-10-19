@@ -20,6 +20,7 @@ import type {
   AuHolder,
   AuInputs,
   AuNotice,
+  CustomObligation,
   Lodgment,
   Market,
   Persisted,
@@ -40,7 +41,7 @@ import type {
 } from "../types.ts";
 import { STATE_VERSION, UNMAPPED_CATEGORY } from "../types.ts";
 import { GOVERNANCE_MODES, ROLES } from "../permissions.ts";
-import { MAX_ACCOUNT, MAX_ARRAY, MAX_NAME, MAX_STRING } from "./validate.ts";
+import { MAX_ACCOUNT, MAX_ARRAY, MAX_NAME, MAX_OBLIGATIONS, MAX_STRING } from "./validate.ts";
 import {
   Invalid,
   amount,
@@ -83,6 +84,8 @@ export const MAX_PEOPLE_AND_FUNDS = 200;
 export const MAX_SERIALISED = 8_000_000;
 const MIN_ASSESSMENT_YEAR = 2000;
 const MAX_ASSESSMENT_YEAR = 2200;
+/** Completed occurrences an obligation can list (a monthly obligation over ~40 years). */
+const MAX_DONE_OCCURRENCES = 500;
 
 // ---------------------------------------------------------------------------------------------------- shapes
 const auInputs = shape<AuInputs>({
@@ -105,6 +108,21 @@ const sgInputs = shape<SgInputs>({
 });
 
 const WORKFLOW_STATUSES = ["Preparing", "In review", "Signed off"];
+const SG_FUND_SECTIONS = ["13D", "13U", "13V", "13OA"];
+const EXPENSE_STREAMS = ["other", "ncmi", "transitional", "clean"] as const;
+
+/** AuExpenseAllocation: pro-rata | other-income | custom shares in basis points that total exactly 10,000. */
+const expenseAllocation: Rule = (value, at) => {
+  const method = record(value, at).method;
+  if (method === "pro-rata" || method === "other-income") return shape<{ method: string }>({ method: literal(method) })(value, at);
+  if (method !== "custom") bad(`${at}.method`, "must be pro-rata, other-income or custom");
+  shape<{ method: string; sharesBps: Record<(typeof EXPENSE_STREAMS)[number], number> }>({
+    method: literal("custom"),
+    sharesBps: shape<Record<(typeof EXPENSE_STREAMS)[number], number>>({ other: int(0, 10_000), ncmi: int(0, 10_000), transitional: int(0, 10_000), clean: int(0, 10_000) }),
+  })(value, at);
+  const shares = (value as { sharesBps: Record<string, number> }).sharesBps;
+  if (EXPENSE_STREAMS.reduce((sum, key) => sum + shares[key]!, 0) !== 10_000) bad(`${at}.sharesBps`, "must total 10,000 basis points (100%)");
+};
 
 const auFund = shape<AuFund>({
   id: fundKey,
@@ -122,6 +140,7 @@ const auFund = shape<AuFund>({
   regime: literal("AMIT"),
   currency: literal("AUD"),
   inputs: auInputs,
+  expenseAllocation: optional(expenseAllocation),
 });
 
 const sgFund = shape<SgFund>({
@@ -159,6 +178,7 @@ const holder = shape<AuHolder & SgHolder>({
   units: amount,
   auStatus: optional(oneOf(["resident", "foreign-eoi", "foreign-non-eoi"])),
   sgClass: optional(oneOf(["individual", "qualifying", "nrni", "nr-fund", "other"])),
+  sgFundSection: optional(oneOf(SG_FUND_SECTIONS)),
 });
 
 const tbRow = shape<TbRow>({ id, fundId: fundKey, account: text(MAX_ACCOUNT, 1), name: label, category: id, current: signed, prior: signed });
@@ -224,6 +244,19 @@ const userFunds: Rule = (value, at) => {
 };
 const user = shape<User>({ id, name, title: label, organisation: label, role: oneOf(ROLES), funds: userFunds });
 
+const obligation = shape<CustomObligation>({
+  id,
+  fundId: fundKey,
+  title: name,
+  category: oneOf(["council-rates", "insurance", "payroll", "fbt", "other"]),
+  firstDue: isoDate,
+  recurrence: oneOf(["none", "monthly", "quarterly", "annually"]),
+  notes: longText,
+  done: list(isoDate, 0, MAX_DONE_OCCURRENCES),
+  createdBy: label,
+  createdAt: stamp,
+});
+
 const byMarket = (rule: Rule): Rule => shape<Record<Market, unknown>>({ AU: rule, SG: rule });
 
 const appData = shape<AppData>({
@@ -250,6 +283,8 @@ const appData = shape<AppData>({
   assets: list(fixedAsset),
   versions: list(calcVersion),
   manualAdjustments: list(manualAdjustment),
+  // Optional so a state saved before obligations existed still loads; normaliseAppData fills it in. Capped like the add reducer.
+  obligations: optional(list(obligation, 0, MAX_OBLIGATIONS)),
 });
 
 const ui = shape<UiState>({ currentUserId: id, jurisdiction: oneOf(["all", "AU", "SG"]), selectedFundId: nullable(fundKey) });
@@ -281,6 +316,7 @@ function relations(data: AppData, state: UiState): void {
     const own = h as Partial<AuHolder & SgHolder>;
     const right = market === "AU" ? own.auStatus !== undefined && own.sgClass === undefined : own.sgClass !== undefined && own.auStatus === undefined;
     if (!right) bad(`holders[${i}]`, `does not carry the ${market === "AU" ? "auStatus" : "sgClass"} of a ${market} fund`);
+    if (own.sgFundSection !== undefined && own.sgClass !== "nr-fund") bad(`holders[${i}].sgFundSection`, "is only for a non-resident fund (nr-fund)");
     const ids = holdersOf.get(h.fundId) ?? new Set<string>();
     ids.add(h.id);
     holdersOf.set(h.fundId, ids);
@@ -339,6 +375,14 @@ function relations(data: AppData, state: UiState): void {
     if (u.funds === "all") return;
     unique(u.funds, (fundId) => fundId, `users[${i}].funds`, "fund");
     u.funds.forEach((fundId, j) => marketFor(fundId, `users[${i}].funds[${j}]`));
+  });
+
+  const obligations = data.obligations ?? [];
+  unique(obligations, (o) => o.id, "obligations");
+  obligations.forEach((o, i) => {
+    marketFor(o.fundId, `obligations[${i}].fundId`);
+    unique(o.done, (date) => date, `obligations[${i}].done`, "date");
+    if (o.done.some((date) => date < o.firstDue)) bad(`obligations[${i}].done`, "has a date before the first due date");
   });
 
   // Feature records (each feature owns its checks in src/domain/<feature>/schema.ts).

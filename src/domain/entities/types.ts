@@ -1,5 +1,5 @@
 // OWNER: Funds & data agent (F7: fund, holder and property management; backup, restore and imports).
-import type { AuHolderStatus, Cents, FundId, GovernanceMode, ISODate, Market, SgHolderClass } from "../types.ts";
+import type { AuExpenseAllocation, AuHolderStatus, Cents, FundId, GovernanceMode, ISODate, Market, ObligationCategory, ObligationRecurrence, SgFundSection, SgHolderClass } from "../types.ts";
 
 export interface EntityFundDraft {
   market: Market;
@@ -30,6 +30,8 @@ export interface EntityHolderDraft {
   units: number;
   auStatus?: AuHolderStatus;
   sgClass?: SgHolderClass;
+  /** Only with sgClass "nr-fund" (see SgHolder.sgFundSection). */
+  sgFundSection?: SgFundSection;
 }
 
 export interface EntityPropertyDraft {
@@ -40,6 +42,15 @@ export interface EntityPropertyDraft {
   improvements: Cents;
   capitalWorksClaimed?: Cents;
   valuation: Cents;
+}
+
+export interface EntityObligationDraft {
+  fundId: FundId;
+  title: string;
+  category: ObligationCategory;
+  firstDue: ISODate;
+  recurrence: ObligationRecurrence;
+  notes: string;
 }
 
 export type EntityAction =
@@ -53,4 +64,13 @@ export type EntityAction =
   | { type: "entity-add-property"; fundId: FundId; property: EntityPropertyDraft }
   | { type: "entity-update-property"; fundId: FundId; propertyId: string; patch: Partial<EntityPropertyDraft> }
   | { type: "entity-remove-property"; fundId: FundId; propertyId: string }
-  | { type: "entity-import-properties"; fundId: FundId; rows: EntityPropertyDraft[]; mode: "append" | "replace" };
+  | { type: "entity-import-properties"; fundId: FundId; rows: EntityPropertyDraft[]; mode: "append" | "replace" }
+  // Bulk fund import (Data page; implemented in entities/fundsImport.ts).
+  | { type: "entity-import-funds"; rows: EntityFundDraft[] }
+  // AU expense allocation policy (implemented in entities/expenseAllocation.ts).
+  | { type: "entity-set-expense-allocation"; fundId: FundId; allocation: AuExpenseAllocation }
+  // Custom compliance obligations (implemented in entities/obligations.ts).
+  | { type: "entity-add-obligation"; obligation: EntityObligationDraft }
+  | { type: "entity-update-obligation"; id: string; patch: Partial<Omit<EntityObligationDraft, "fundId">> }
+  | { type: "entity-delete-obligation"; id: string }
+  | { type: "entity-set-obligation-done"; id: string; dueDate: ISODate; done: boolean };

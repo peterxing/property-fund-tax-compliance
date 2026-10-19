@@ -50,13 +50,13 @@ describe("the GST & BAS workspace", () => {
   it("lets the Singapore preparer edit an open period", async () => {
     const app = await mountApp({ hash: GST, user: "w-l-teo" });
     assert.equal(blocked(app.byRole("button", "Add entry")), false);
-    assert.equal(blocked(app.byRole("button", "Import CSV")), false);
+    assert.equal(blocked(app.byRole("button", "Import CSV or Excel")), false);
   });
 
   it("renders as read-only for the view-only persona", async () => {
     const app = await mountApp({ hash: "#/gst?fund=coastline&period=2026-09-30", user: "m-castillo" });
     assert.equal(blocked(app.byRole("button", "Add entry")), true);
-    assert.equal(blocked(app.byRole("button", "Import CSV")), true);
+    assert.equal(blocked(app.byRole("button", "Import CSV or Excel")), true);
     assert.match(app.text(), /View only for your role/);
     assert.equal(app.queryByRole("button", "Edit"), null);
     assert.equal(app.queryByRole("button", "Record lodgment"), null, "no lodgment form for someone who cannot record lodgment");

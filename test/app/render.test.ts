@@ -88,6 +88,7 @@ describe("header", () => {
         "Property taxes",
         "Assets & allowances",
         "Compare",
+        "Due diligence",
         "Bulk review",
         "Analytics",
         "Compliance calendar",
@@ -118,7 +119,7 @@ describe("header", () => {
 
   it("hides the nav icons from assistive technology", () => {
     const icons = all(frag, "nav svg");
-    assert.equal(icons.length, 18);
+    assert.equal(icons.length, 19, "one per workspace (18) and the menu button's chevron");
     for (const icon of icons) assert.equal(icon.getAttribute("aria-hidden"), "true");
   });
 
@@ -130,7 +131,7 @@ describe("header", () => {
     const panel = byId(frag, button.getAttribute("aria-controls") ?? "");
     assert.equal(button.getAttribute("aria-expanded"), "false");
     assert.ok(panel.classList.contains("app-nav__panel"));
-    assert.equal(all(panel, "a").length, 17);
+    assert.equal(all(panel, "a").length, 18);
   });
 
   it("labels the persona switcher and selects the current persona", () => {

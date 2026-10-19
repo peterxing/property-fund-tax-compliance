@@ -61,6 +61,18 @@ function manualDiv40DvSchedule(cost: Cents, lifeYears: number, fromIncomeYear: n
   return deductions;
 }
 
+function manualLowValuePoolSchedule(cost: Cents, years: number): Cents[] {
+  const deductions: Cents[] = [];
+  let opening = 0;
+  for (let i = 0; i < years; i += 1) {
+    const addition = i === 0 ? cost : 0;
+    const deduction = roundRatio(opening, 3750, 10_000) + roundRatio(addition, 1875, 10_000);
+    deductions.push(deduction);
+    opening = Math.max(0, opening + addition - deduction);
+  }
+  return deductions;
+}
+
 const div40Draft: FixedAssetDraft = {
   kind: "AU_DIV40",
   propertyId: "coastline-coastline-private-hospital",
@@ -163,6 +175,41 @@ describe("asset verifier: 10-year schedules", () => {
     };
     const view = assetRegisterView({ ...data, assets: [synthetic] }, "coastline", ctx(data));
     assert.equal(view.schedule.some((row) => row.kind === "AU_BORROWING"), true);
+  });
+
+  test("single AU low-value pool asset follows 18.75% / 37.5% pool rates", () => {
+    const data = seedData();
+    const synthetic: FixedAsset = {
+      id: "verifier-pool",
+      fundId: "coastline",
+      propertyId: null,
+      kind: "AU_DIV40",
+      description: "Verifier low-cost plant",
+      cost: 800_00,
+      startDate: "2025-07-01",
+      assetClassId: "OTHER_PLANT",
+      method: "PRIME_COST",
+      effectiveLifeYears: 4,
+      poolMethod: "LOW_VALUE_POOL",
+    };
+    const view = assetRegisterView({ ...data, assets: [synthetic] }, "coastline", ctx(data));
+    assert.deepEqual(view.schedule.filter((row) => row.kind === "AU_DIV40").slice(0, 4).map((row) => row.deduction), manualLowValuePoolSchedule(800_00, 4));
+  });
+
+  test("single Singapore s14N R&R item is independently spread over 3 YAs", () => {
+    const data = seedData();
+    const synthetic: FixedAsset = {
+      id: "verifier-rr",
+      fundId: "telok-ayer",
+      propertyId: null,
+      kind: "SG_RR",
+      description: "Verifier renovation",
+      cost: 120_000_00,
+      startDate: "2026-08-01",
+      claimMode: "THREE_YEAR",
+    };
+    const view = assetRegisterView({ ...data, assets: [synthetic] }, "telok-ayer", ctx(data));
+    assert.deepEqual(view.schedule.filter((row) => row.kind === "SG_RR").map((row) => row.deduction), [40_000_00, 40_000_00, 40_000_00]);
   });
 });
 

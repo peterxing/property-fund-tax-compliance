@@ -43,6 +43,9 @@ function inputState(data: AppData, fund: Fund): Json {
       id: h.id,
       units: h.units,
       status: "auStatus" in h ? h.auStatus : h.sgClass,
+      // The fund section changes an nr-fund holder's withholding (SG s45G), so it is a calculation input. Added only when set, so the
+      // hashes of versions saved before sections existed stay the same.
+      ...("sgFundSection" in h && h.sgFundSection !== undefined ? { sgFundSection: h.sgFundSection } : {}),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   const tbRows = data.tbRows
@@ -54,7 +57,12 @@ function inputState(data: AppData, fund: Fund): Json {
     .map((a) => ({ id: a.id, label: a.label, amount: a.amount, component: a.component, reason: a.reason }))
     .sort((a, b) => a.id.localeCompare(b.id));
   return {
-    fund: { inputs: fund.inputs as unknown as Json, unitsOnIssue: fund.unitsOnIssue, whtRemitted: fund.whtRemitted },
+    fund: {
+      inputs: fund.inputs as unknown as Json,
+      unitsOnIssue: fund.unitsOnIssue,
+      whtRemitted: fund.whtRemitted,
+      ...(fund.market === "AU" ? { expenseAllocation: (fund.expenseAllocation ?? { method: "pro-rata" }) as unknown as Json } : {}),
+    },
     holders,
     tbRows,
     taxAdjustments: (data.taxAdjustments[fund.id] ?? {}) as Json,
@@ -91,7 +99,20 @@ function snapshotLines(calc: FundCalc, tb: TbView): CalcSnapshotLine[] {
 function snapshotInputs(fund: Fund, tb: TbView): CalcSnapshotInput[] {
   const fundInputs = Object.entries(fund.inputs as unknown as Record<string, number>).map(([key, value]) => ({ ref: `input:${key}`, label: inputLabel(key), value }));
   const tbInputs = Object.entries(tb.derivedInputs as unknown as Record<string, number>).map(([key, value]) => ({ ref: `tb:${key}`, label: `TB-derived ${inputLabel(key)}`, value }));
-  return [...fundInputs, ...tbInputs, { ref: "unitsOnIssue", label: "Units on issue", value: fund.unitsOnIssue }, { ref: "whtRemitted", label: "Withholding remitted", value: fund.whtRemitted }];
+  const allocation =
+    fund.market === "AU"
+      ? [
+          {
+            ref: "expenseAllocation",
+            label: "Expense allocation policy",
+            value:
+              (fund.expenseAllocation ?? { method: "pro-rata" }).method === "custom"
+                ? JSON.stringify((fund.expenseAllocation ?? { method: "pro-rata" }))
+                : (fund.expenseAllocation ?? { method: "pro-rata" }).method,
+          },
+        ]
+      : [];
+  return [...fundInputs, ...tbInputs, ...allocation, { ref: "unitsOnIssue", label: "Units on issue", value: fund.unitsOnIssue }, { ref: "whtRemitted", label: "Withholding remitted", value: fund.whtRemitted }];
 }
 
 export function buildCalcVersion(data: AppData, fund: Fund, ctx: Ctx, trigger: CalcVersionTrigger, label: string, reason: string | null): CalcVersion {

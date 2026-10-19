@@ -41,7 +41,7 @@ export function csvTemplate(fund: Fund): CsvModel {
     columns: ["kind", "propertyId", "description", "cost", "startDate", "assetClassId", "methodOrRegime", "effectiveLifeYears"],
     rows: [
       fund.market === "AU"
-        ? ["AU_DIV40", "", "Example HVAC plant", 125000, fund.periodStart, "HVAC_PACKAGED_UNIT", "DIMINISHING_VALUE", 15]
+        ? ["AU_DIV40", "", "Example low-cost HVAC controller", 950, fund.periodStart, "HVAC_PACKAGED_UNIT", "LOW_VALUE_POOL", 15]
         : ["SG_PLANT", "", "Example lift works", 125000, fund.periodStart, "LIFTS_ESCALATORS_HVAC", "S19A_3Y", ""],
     ],
   };
@@ -135,8 +135,8 @@ export function parseAssetCsv(text: string, fund: Fund, properties?: readonly Pr
         return;
       }
       const methodOrRegime = get("methodOrRegime") || "PRIME_COST";
-      if (methodOrRegime !== "DIMINISHING_VALUE" && methodOrRegime !== "PRIME_COST") {
-        errors.push(`Row ${row}: methodOrRegime must be PRIME_COST or DIMINISHING_VALUE.`);
+      if (methodOrRegime !== "DIMINISHING_VALUE" && methodOrRegime !== "PRIME_COST" && methodOrRegime !== "LOW_VALUE_POOL") {
+        errors.push(`Row ${row}: methodOrRegime must be PRIME_COST, DIMINISHING_VALUE or LOW_VALUE_POOL.`);
         return;
       }
       const effectiveLifeYears = positiveYears(get("effectiveLifeYears") || "10");
@@ -144,7 +144,7 @@ export function parseAssetCsv(text: string, fund: Fund, properties?: readonly Pr
         errors.push(`Row ${row}: effectiveLifeYears must be positive.`);
         return;
       }
-      assets.push({ kind, propertyId, description, cost, startDate, assetClassId, method: methodOrRegime, effectiveLifeYears });
+      assets.push({ kind, propertyId, description, cost, startDate, assetClassId, method: methodOrRegime === "DIMINISHING_VALUE" ? "DIMINISHING_VALUE" : "PRIME_COST", effectiveLifeYears, ...(methodOrRegime === "LOW_VALUE_POOL" ? { poolMethod: "LOW_VALUE_POOL" } : {}) });
     } else if (fund.market === "SG" && kind === "SG_PLANT") {
       const assetClassId = get("assetClassId") || "P_AND_M_GENERAL";
       if (!SG_ASSET_CLASSES.has(assetClassId)) {
@@ -157,6 +157,13 @@ export function parseAssetCsv(text: string, fund: Fund, properties?: readonly Pr
         return;
       }
       assets.push({ kind, propertyId, description, cost, startDate, assetClassId, regime: regime as CapitalAllowanceRegime });
+    } else if (fund.market === "SG" && kind === "SG_RR") {
+      const mode = get("methodOrRegime") || "THREE_YEAR";
+      if (mode !== "THREE_YEAR" && mode !== "ONE_YEAR") {
+        errors.push(`Row ${row}: methodOrRegime must be THREE_YEAR or ONE_YEAR for section 14N R&R.`);
+        return;
+      }
+      assets.push({ kind, propertyId, description, cost, startDate, claimMode: mode });
     } else {
       errors.push(`Row ${row}: kind is not valid for this fund.`);
       return;

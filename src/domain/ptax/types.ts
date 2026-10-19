@@ -17,6 +17,15 @@ export interface PtaxPayment {
   reference: string;
 }
 
+export interface PtaxNotice {
+  id: string;
+  period: string;
+  assessedAmount: Cents;
+  issueDate: ISODate;
+  dueDate: ISODate;
+  reference: string;
+}
+
 export interface PropertyTaxProfile {
   propertyId: string;
   fundId: FundId;
@@ -29,6 +38,8 @@ export interface PropertyTaxProfile {
   auTrustSurchargeApplies: boolean;
   auResidential: boolean;
   auResidentialShareBps: number | null;
+  /** Optional saved field. WA holdings default to true when absent because the engine treats omitted metropolitanRegion as metropolitan. */
+  auMetropolitanRegion?: boolean;
   sgAnnualValue: Cents | null;
   sgUsage: PropertyTaxUsage | null;
   sgOwnerOccupied: boolean;
@@ -44,16 +55,20 @@ export interface PropertyTaxProfile {
   disposalDate: ISODate | null;
   disposalPrice: Cents | null;
   payments: PtaxPayment[];
+  /** Optional saved field. Missing means no assessment notice has been recorded for any annual property-tax period. */
+  notices?: PtaxNotice[];
 }
 
-export type PtaxEditableField = Exclude<keyof PropertyTaxProfile, "propertyId" | "fundId" | "payments">;
+export type PtaxEditableField = Exclude<keyof PropertyTaxProfile, "propertyId" | "fundId" | "payments" | "notices">;
 export type PtaxProfilePatch = Partial<Pick<PropertyTaxProfile, PtaxEditableField>>;
 
 export type PtaxAction =
   | { type: "ptax-update-profile"; fundId: FundId; propertyId: string; patch: PtaxProfilePatch }
   | { type: "ptax-reset-profile"; fundId: FundId; propertyId: string }
   | { type: "ptax-record-payment"; fundId: FundId; propertyId: string; kind: PtaxPaymentKind; period: string; amount: Cents; date: ISODate; reference: string }
-  | { type: "ptax-unrecord-payment"; fundId: FundId; propertyId: string; paymentId: string };
+  | { type: "ptax-unrecord-payment"; fundId: FundId; propertyId: string; paymentId: string }
+  | { type: "ptax-record-notice"; fundId: FundId; propertyId: string; period: string; assessedAmount: Cents; issueDate: ISODate; dueDate: ISODate; reference: string }
+  | { type: "ptax-remove-notice"; fundId: FundId; propertyId: string; noticeId: string };
 
 export interface PtaxKpis {
   annualTax: Cents;
@@ -81,8 +96,14 @@ export interface AnnualTaxRow {
   tax: Cents;
   surcharge: Cents;
   total: Cents;
+  period: string;
   dueDate: ISODate | null;
   dueLabel: string;
+  dueEstimated: boolean;
+  notice: PtaxNotice | null;
+  assessedAmount: Cents | null;
+  assessedVariance: Cents | null;
+  assessedLabel: string;
   paid: boolean;
   payments: PtaxPayment[];
   status: "modelled" | "not-modelled" | "missing-data";

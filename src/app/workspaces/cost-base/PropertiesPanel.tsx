@@ -121,6 +121,7 @@ export function PropertiesPanel({ view, onInvestorChange }: PropertiesPanelProps
         </div>
       ) : null}
       {view.sgNote ? <p className="cb-note">{view.sgNote}</p> : null}
+      {view.sgValuationNote ? <p className="cb-note">{view.sgValuationNote}</p> : null}
     </Panel>
   );
 }

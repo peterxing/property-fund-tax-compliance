@@ -22,7 +22,7 @@ export function sgStatementDoc(data: AppData, fundIn: Fund, calc: FundCalc, hold
 
   const paymentDate = paymentDateOf(fund, sgNoticeFor(data, fund.id));
   const sgClass = sgClassOf(line.holder);
-  const t = holderTreatment(sgClass, paymentDate);
+  const t = holderTreatment(sgClass, paymentDate, "sgFundSection" in line.holder ? line.holder.sgFundSection : undefined);
   const mapping = ENGINE_MAPPING[sgClass];
   const amount = (key: string) => line.lines.find((l) => l.key === key)?.amount ?? 0;
   const allocation: UnitholderAllocation = {

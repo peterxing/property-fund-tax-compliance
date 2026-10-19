@@ -1,6 +1,7 @@
-import type { AppData, AuHolderStatus, Cents, Fund, Holder, Property, SgHolderClass } from "../../../domain/types.ts";
+import type { AppData, AuHolderStatus, Cents, Fund, GovernanceMode, Holder, Market, Property, SgFundSection, SgHolderClass } from "../../../domain/types.ts";
 import { STATE_VERSION } from "../../../domain/types.ts";
-import type { EntityHolderDraft, EntityPropertyDraft } from "../../../domain/entities/types.ts";
+import type { EntityFundDraft, EntityHolderDraft, EntityPropertyDraft } from "../../../domain/entities/types.ts";
+import { isISODate } from "../../../domain/core/validate.ts";
 import { saveBlob } from "../../exports/download.ts";
 
 export const DATA_STORAGE_NOTE = "All data stays in this browser. Backups contain the full portfolio, so only a Head of Tax can download or restore them.";
@@ -9,6 +10,8 @@ export const DELETE_ACCESS_NOTE = "A fund cannot be deleted while any user has e
 export const BACKUP_APP = "property-fund-tax-compliance";
 export const MAX_BACKUP_BYTES = 8_000_000;
 export const MAX_ENTITY_IMPORT_ROWS = 2_000;
+export const MAX_FUND_IMPORT_BYTES = 1_000_000;
+export const MAX_FUND_IMPORT_ROWS = 200;
 
 export interface BackupEnvelope {
   app: typeof BACKUP_APP;
@@ -136,6 +139,11 @@ function parseWhole(value: string, label: string, line: number): number | string
   return Number.isSafeInteger(n) && n >= 0 ? n : `Line ${line}: ${label} must be a whole number of zero or more.`;
 }
 
+function parsePositiveWhole(value: string, label: string, line: number): number | string {
+  const n = parseWhole(value, label, line);
+  return typeof n === "string" ? n : n >= 1 ? n : `Line ${line}: ${label} must be a whole number of at least 1.`;
+}
+
 function parseMoney(value: string, label: string, line: number): Cents | string {
   const text = value.replace(/[$,\s]/g, "");
   const n = Number(text);
@@ -145,6 +153,7 @@ function parseMoney(value: string, label: string, line: number): Cents | string 
 
 const AU_STATUSES: readonly AuHolderStatus[] = ["resident", "foreign-eoi", "foreign-non-eoi"];
 const SG_CLASSES: readonly SgHolderClass[] = ["individual", "qualifying", "nrni", "nr-fund", "other"];
+const SG_FUND_SECTIONS: readonly SgFundSection[] = ["13D", "13U", "13V", "13OA"];
 
 export function parseHoldersCsv(text: string, market: Fund["market"]): EntityHolderDraft[] | string {
   const rows = rowsOf(text);
@@ -169,7 +178,11 @@ export function parseHoldersCsv(text: string, market: Fund["market"]): EntityHol
     } else {
       const sgClass = clean(row.sgclass ?? row.sgClass ?? row.class) as SgHolderClass;
       if (!SG_CLASSES.includes(sgClass)) return `Line ${line}: sgClass must be individual, qualifying, nrni, nr-fund or other.`;
-      out.push({ holder, country, units, sgClass });
+      const sectionText = clean(row.sgfundsection ?? row.sgFundSection);
+      const sgFundSection = sectionText === "" ? undefined : (sectionText as SgFundSection);
+      if (sgFundSection !== undefined && !SG_FUND_SECTIONS.includes(sgFundSection)) return `Line ${line}: sgFundSection must be 13D, 13U, 13V or 13OA.`;
+      if (sgFundSection !== undefined && sgClass !== "nr-fund") return `Line ${line}: sgFundSection is only for nr-fund holders.`;
+      out.push({ holder, country, units, sgClass, ...(sgClass === "nr-fund" && sgFundSection ? { sgFundSection } : {}) });
     }
   }
   return out;
@@ -186,7 +199,8 @@ export function parsePropertiesCsv(text: string): EntityPropertyDraft[] | string
     const name = clean(row.name);
     const location = clean(row.location);
     const acquired = clean(row.acquired);
-    if (!name || !location || !/^\d{4}-\d{2}-\d{2}$/.test(acquired)) return `Line ${line}: name, location and acquired (YYYY-MM-DD) are required.`;
+    if (!name || !location || !acquired) return `Line ${line}: name, location and acquired (YYYY-MM-DD) are required.`;
+    if (!isISODate(acquired)) return `Line ${line}: acquired must be a valid YYYY-MM-DD date.`;
     const dedupe = name.toLowerCase();
     if (seen.has(dedupe)) return `Line ${line}: property ${name} appears more than once.`;
     seen.add(dedupe);
@@ -204,11 +218,98 @@ export function parsePropertiesCsv(text: string): EntityPropertyDraft[] | string
 export function holdersTemplate(market: Fund["market"]): string {
   return market === "AU"
     ? "holder,country,units,auStatus\nExample Holder,Australia,1000000,resident\n"
-    : "holder,country,units,sgClass\nExample Holder,Singapore,1000000,qualifying\n";
+    : "holder,country,units,sgClass,sgFundSection\nExample Holder,Singapore,1000000,qualifying,\nExample Fund,Cayman Islands,1000000,nr-fund,13OA\n";
 }
 
 export function propertiesTemplate(): string {
   return "name,location,acquired,cost,improvements,capitalWorksClaimed,valuation\nExample Tower,Sydney NSW,2024-01-15,10000000,0,0,12500000\n";
+}
+
+export interface FundImportPreviewRow {
+  line: number;
+  draft: EntityFundDraft | null;
+  errors: string[];
+}
+
+export interface FundImportPreview {
+  rows: FundImportPreviewRow[];
+  validRows: EntityFundDraft[];
+  errors: string[];
+}
+
+const GOVERNANCE: readonly GovernanceMode[] = ["agent-lodges", "agent-signs-off", "no-agent"];
+
+function parseListed(value: string, line: number): boolean | string {
+  const v = value.toLowerCase();
+  if (["yes", "true", "listed", "1", "y"].includes(v)) return true;
+  if (["no", "false", "unlisted", "0", "n", ""].includes(v)) return false;
+  return `Line ${line}: listed must be yes or no.`;
+}
+
+function dateProblem(value: string, label: string, line: number): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return `Line ${line}: ${label} must be YYYY-MM-DD.`;
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) return `Line ${line}: ${label} must be YYYY-MM-DD.`;
+  return null;
+}
+
+export function parseFundsCsv(text: string): FundImportPreview {
+  const parsed = rowsOf(text);
+  if (typeof parsed === "string") return { rows: [], validRows: [], errors: [parsed.replace("2,000", "200")] };
+  if (parsed.length > MAX_FUND_IMPORT_ROWS) return { rows: [], validRows: [], errors: [`The CSV can have up to ${MAX_FUND_IMPORT_ROWS} rows.`] };
+  const rows: FundImportPreviewRow[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < parsed.length; i++) {
+    const line = i + 2;
+    const row = parsed[i]!;
+    const errors: string[] = [];
+    const market = clean(row.market).toUpperCase() as Market;
+    const name = clean(row.name);
+    const sector = clean(row.sector);
+    const listed = parseListed(clean(row.listed), line);
+    const periodStart = clean(row.periodstart ?? row.periodStart);
+    const periodEnd = clean(row.periodend ?? row.periodEnd);
+    const governance = clean(row.governance) as GovernanceMode;
+    if (market !== "AU" && market !== "SG") errors.push(`Line ${line}: market must be AU or SG.`);
+    if (!name) errors.push(`Line ${line}: name is required.`);
+    if (!sector) errors.push(`Line ${line}: sector is required.`);
+    const dedupe = name.toLowerCase();
+    if (dedupe && seen.has(dedupe)) errors.push(`Line ${line}: fund ${name} appears more than once.`);
+    if (dedupe) seen.add(dedupe);
+    if (typeof listed === "string") errors.push(listed);
+    const startProblem = dateProblem(periodStart, "periodStart", line);
+    if (startProblem) errors.push(startProblem);
+    const endProblem = dateProblem(periodEnd, "periodEnd", line);
+    if (endProblem) errors.push(endProblem);
+    if (!startProblem && !endProblem && periodStart > periodEnd) errors.push(`Line ${line}: periodEnd must be on or after periodStart.`);
+    const unitsOnIssue = parsePositiveWhole(clean(row.unitsonissue ?? row.unitsOnIssue), "unitsOnIssue", line);
+    if (typeof unitsOnIssue === "string") errors.push(unitsOnIssue);
+    if (!GOVERNANCE.includes(governance)) errors.push(`Line ${line}: governance must be agent-lodges, agent-signs-off or no-agent.`);
+    const assessmentYearText = clean(row.assessmentyear ?? row.assessmentYear);
+    const assessmentYear = assessmentYearText === "" ? undefined : parsePositiveWhole(assessmentYearText, "assessmentYear", line);
+    if (market === "SG" && assessmentYear === undefined) errors.push(`Line ${line}: assessmentYear is required for SG funds.`);
+    if (typeof assessmentYear === "string") errors.push(assessmentYear);
+    const draft =
+      errors.length === 0
+        ? {
+            market,
+            name,
+            sector,
+            listed: listed as boolean,
+            periodStart,
+            periodEnd,
+            unitsOnIssue: unitsOnIssue as number,
+            governance,
+            assessmentYear: market === "SG" ? (assessmentYear as number) : undefined,
+          }
+        : null;
+    rows.push({ line, draft, errors });
+  }
+  return { rows, validRows: rows.flatMap((row) => (row.draft ? [row.draft] : [])), errors: rows.flatMap((row) => row.errors) };
+}
+
+export function fundsTemplate(): string {
+  return "market,name,sector,listed,periodStart,periodEnd,unitsOnIssue,governance,assessmentYear\nAU,Example Office Trust,Office,no,2025-07-01,2026-06-30,1000000,no-agent,\nSG,Example Logistics REIT,Logistics,yes,2026-07-01,2026-09-30,1000000,agent-signs-off,2027\n";
 }
 
 export function holderCount(holders: readonly Holder[], fundId: string): number {

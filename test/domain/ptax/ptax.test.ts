@@ -37,6 +37,9 @@ test("seed has one exact property-tax profile for every property and passes the 
   assert.equal(harbourline.auState, "NSW");
   assert.equal(harbourline.sgAnnualValue, null);
   assert.equal(harbourline.purchasePrice, data.properties.find((property) => property.id === harbourline.propertyId)?.cost);
+  assert.equal(profile(data, "wattle-banksia-plaza").auMetropolitanRegion, true);
+  assert.equal(profile(data, "kurrajong-fremantle-wharf-offices").auMetropolitanRegion, true);
+  assert.equal(profile(data, "wattle-wattle-grove-shopping-centre").notices?.[0]?.dueDate, "2026-09-16");
 
   const telok = profile(data, "telok-ayer-telok-ayer-tower");
   assert.equal(telok.auState, null);
@@ -44,7 +47,7 @@ test("seed has one exact property-tax profile for every property and passes the 
   assert.ok((telok.sgAnnualValue ?? 0) > 0);
 });
 
-test("annual tax view computes AU NSW/VIC/QLD and SG golden values, and flags unmodelled states without a guessed amount", () => {
+test("annual tax view computes AU NSW/VIC/QLD and SG golden values, and flags missing data without a guessed amount", () => {
   const data = seedData();
   const harbourline = propertyTaxView(data, "harbourline", { now: NOW });
   // NSW trust land tax, 2026 assessment: total NSW taxable land value A$485,871,588.
@@ -61,19 +64,38 @@ test("annual tax view computes AU NSW/VIC/QLD and SG golden values, and flags un
   assert.equal(sa?.status, "modelled");
   assert.equal(sa?.total, 662_876_020);
 
-  const tasData = seedData();
-  const lakeside = tasData.propertyProfiles.find((entry) => entry.propertyId === "wattle-lakeside-marketplace")!;
-  Object.assign(lakeside, { auState: "TAS" });
-  const tas = propertyTaxView(tasData, "wattle", { now: NOW }).rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
-  assert.equal(tas?.status, "not-modelled");
-  assert.equal(tas?.total, 0);
-  assert.match(tas?.basis ?? "", /Tasmania/);
+  const missingData = seedData();
+  const lakeside = missingData.propertyProfiles.find((entry) => entry.propertyId === "wattle-lakeside-marketplace")!;
+  Object.assign(lakeside, { auLandValue: null });
+  const missing = propertyTaxView(missingData, "wattle", { now: NOW }).rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
+  assert.equal(missing?.status, "missing-data");
+  assert.equal(missing?.total, 0);
+  assert.match(missing?.basis ?? "", /Profile needs taxable land value/);
 
   const telok = propertyTaxView(data, "telok-ayer", { now: NOW });
   // IRAS non-residential rate is 10% of annual value: S$13,755,721.473 -> S$13,755,721.47.
   assert.equal(telok.rows.find((row) => row.propertyId === "telok-ayer-telok-ayer-tower")?.total, 1375572147);
   // Same 10% rule: S$84,875,728.23 annual value -> S$8,487,572.82.
   assert.equal(telok.rows.find((row) => row.propertyId === "telok-ayer-cecil-exchange")?.total, 848757282);
+});
+
+test("WA metropolitan-region flag controls MRIT and clears when the state stops being WA", () => {
+  const data = seedData();
+  const changed = applyAction(data, { type: "ptax-update-profile", fundId: "wattle", propertyId: "wattle-banksia-plaza", patch: { auMetropolitanRegion: false } }, ctx(data));
+  assert.equal(changed.ok, true);
+  if (!changed.ok) return;
+  const banksia = propertyTaxView(changed.data, "wattle", { now: NOW }).rows.find((row) => row.propertyId === "wattle-banksia-plaza");
+  assert.equal(banksia?.tax, 700_568_241);
+  assert.equal(banksia?.surcharge, 0, "MRIT is 0.14% x (A$266,398,217.50 - A$300,000) when metropolitan, and nil outside the region");
+  assert.match(banksia?.basis ?? "", /No MRIT: outside the metropolitan region/);
+  assert.equal(appDataProblem(changed.data), null);
+
+  const moved = applyAction(changed.data, { type: "ptax-update-profile", fundId: "wattle", propertyId: "wattle-banksia-plaza", patch: { auState: "SA" } }, ctx(changed.data));
+  assert.equal(moved.ok, true);
+  if (moved.ok) {
+    assert.equal(profile(moved.data, "wattle-banksia-plaza").auMetropolitanRegion, undefined);
+    assert.equal(appDataProblem(moved.data), null);
+  }
 });
 
 test("duties view computes Singapore BSD deadlines and a NSW foreign surcharge case", () => {
@@ -110,13 +132,13 @@ test("ABSD entity case and not-modelled duties are excluded from totals", () => 
   const wattle = dutiesView(data, "wattle", { now: NOW });
   assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-coral-coast-central")?.totalDuty, 3902623350);
   assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-banksia-plaza")?.totalDuty, 2689949985, "WA general rate on A$522,492,875");
-  assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-lakeside-marketplace")?.status, "not-modelled");
+  assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-lakeside-marketplace")?.status, "modelled");
   assert.equal(
     wattle.rows.find((candidate) => candidate.propertyId === "wattle-wattle-grove-shopping-centre")?.basis,
     "New South Wales transfer duty rates for a contract dated 1 Oct 2009 are not in the app (only later contracts are modelled); work it out separately.",
     "the engine's missing-rate error is put into words",
   );
-  assert.equal(wattle.totals.totalDuty, 3902623350 + 2689949985, "the unmodelled 2012 SA contract stays out of the total");
+  assert.equal(wattle.totals.totalDuty, wattle.rows.filter((row) => row.status === "modelled").reduce((sum, row) => sum + row.totalDuty, 0), "only modelled duties are included in the total");
 });
 
 test("profile reducer enforces edit access, validates fields, ignores workflow locks, and audits successful changes", () => {
@@ -193,22 +215,57 @@ test("payment reducer records and removes payments, enforces no-access/view-only
   if (removed.ok) assert.equal(appDataProblem(removed.data), null);
 });
 
+test("notice reducer records, updates and removes assessment notices with permissions, validation, audit and immutable state", () => {
+  const data = seedData();
+  const readOnly = applyAction(data, { type: "ptax-record-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", period: "land-tax-2026", assessedAmount: 1, issueDate: "2026-09-01", dueDate: "2026-09-30", reference: "LT" }, ctx(data, "m-castillo"));
+  assert.equal(readOnly.ok, false);
+  assert.match(readOnly.ok ? "" : readOnly.reason, /permission/);
+
+  const invalidPeriod = applyAction(data, { type: "ptax-record-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", period: "property-tax-2026", assessedAmount: 1, issueDate: "2026-09-01", dueDate: "2026-09-30", reference: "LT" }, ctx(data));
+  assert.equal(invalidPeriod.ok, false);
+  assert.match(invalidPeriod.ok ? "" : invalidPeriod.reason, /land-tax/);
+
+  const invalidDate = applyAction(data, { type: "ptax-record-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", period: "land-tax-2026", assessedAmount: 1, issueDate: "2026-10-01", dueDate: "2026-09-30", reference: "LT" }, ctx(data));
+  assert.equal(invalidDate.ok, false);
+  assert.match(invalidDate.ok ? "" : invalidDate.reason, /before/);
+
+  const recorded = applyAction(data, { type: "ptax-record-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", period: "land-tax-2026", assessedAmount: 585_954_029, issueDate: "2026-08-20", dueDate: "2026-10-31", reference: "QRO-2026-CC" }, ctx(data));
+  assert.equal(recorded.ok, true);
+  if (!recorded.ok) return;
+  assert.equal(profile(data, "wattle-coral-coast-central").notices, undefined, "input data was not mutated");
+  assert.equal(propertyTaxView(recorded.data, "wattle", { now: NOW }).rows.find((row) => row.propertyId === "wattle-coral-coast-central")?.dueDate, "2026-10-31");
+  assert.equal(recorded.data.audit.at(-1)?.action, "Land tax assessment notice recorded");
+  assert.equal(appDataProblem(recorded.data), null);
+
+  const updated = applyAction(recorded.data, { type: "ptax-record-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", period: "land-tax-2026", assessedAmount: 585_954_129, issueDate: "2026-08-20", dueDate: "2026-10-31", reference: "QRO-2026-CC-R" }, ctx(recorded.data));
+  assert.equal(updated.ok, true);
+  if (!updated.ok) return;
+  const notice = profile(updated.data, "wattle-coral-coast-central").notices?.[0];
+  assert.equal(notice?.assessedAmount, 585_954_129);
+  const removed = applyAction(updated.data, { type: "ptax-remove-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", noticeId: notice!.id }, ctx(updated.data));
+  assert.equal(removed.ok, true);
+  if (removed.ok) {
+    assert.equal(profile(removed.data, "wattle-coral-coast-central").notices, undefined);
+    assert.equal(appDataProblem(removed.data), null);
+  }
+});
+
 test("providers emit risks, compare sources and missed SG duty-deadline risks at 12 Oct 2026", () => {
   const data = seedData();
   const wattle = data.funds.find((fund) => fund.id === "wattle")!;
   const risks = ptaxProviders.risks?.(data, wattle, NOW) ?? [];
   assert.ok(risks.some((risk) => risk.title.includes("Wattle Grove Shopping Centre: payment overdue") && risk.area === "Land tax"));
   assert.ok(!risks.some((risk) => risk.title.includes("Lakeside Marketplace") && risk.area === "Land tax"), "SA land tax is modelled and paid");
-  assert.ok(risks.some((risk) => risk.title === "Lakeside Marketplace: duty not calculated" && risk.severity === "note" && /21 May 2012/.test(risk.detail)), "its 2012 duty predates the modelled SA rates");
 
   const telok = data.funds.find((fund) => fund.id === "telok-ayer")!;
   const sgRisks = ptaxProviders.risks?.(data, telok, NOW) ?? [];
   assert.ok(sgRisks.some((risk) => risk.title.includes("Cecil Exchange: payment overdue")));
 
   const sources = ptaxProviders.compareSources?.(data, telok, NOW) ?? [];
-  assert.deepEqual(sources.map((source) => source.id), ["ptax-annual", "ptax-duties"]);
+  assert.deepEqual(sources.map((source) => source.id), ["ptax-annual", "ptax-annual-assessed", "ptax-duties"]);
   assert.equal(sources[0]?.lines.length, 3);
-  assert.equal(sources[1]?.lines[0]?.amount, 6535750500);
+  assert.ok(sources[1]?.lines.some((line) => line.ref === "ptax.assessed.telok-ayer-cecil-exchange"));
+  assert.equal(sources[2]?.lines[0]?.amount, 6535750500);
 
   const deadlines = ptaxProviders.deadlines?.(data, wattle, NOW) ?? [];
   assert.ok(deadlines.some((deadline) => deadline.obligation.includes("Wattle Grove") && deadline.status === "overdue"));

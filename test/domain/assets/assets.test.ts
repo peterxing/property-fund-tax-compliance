@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { computeCapitalWorksDeduction } from "../../../src/engine/au/capitalWorks.ts";
-import { computeDepreciation } from "../../../src/engine/au/depreciation.ts";
+import { computeDepreciation, computeDepreciationSchedule } from "../../../src/engine/au/depreciation.ts";
 import { computeCapitalAllowances } from "../../../src/engine/capitalAllowances.ts";
 import { appDataProblem } from "../../../src/domain/core/schema.ts";
 import { seedData } from "../../../src/domain/seed/index.ts";
@@ -71,6 +71,38 @@ test("hand checked Division 40 diminishing value asset part-year", () => {
   assert.equal(result.line.daysHeld, 181);
   assert.equal(result.line.deductionAllowed, 3_620_00);
   assert.equal(result.line.closingAdjustableValue, 32_880_00);
+});
+
+test("hand checked Division 40 balancing adjustments above and below adjustable value", () => {
+  // s40-285 compares termination value with adjustable value after current-year decline.
+  // $100,000 prime-cost asset, 10-year life, held all year: decline is $10,000 and adjustable value is $90,000.
+  const income = computeDepreciation({
+    incomeYear: 2026,
+    asset: { id: "gain", label: "Disposed above adjustable value", assetClassId: "OTHER_PLANT", cost: 100_000_00, startDate: "2025-07-01", method: "PRIME_COST", effectiveLifeYears: 10, terminationDate: "2026-06-30", terminationValue: 95_000_00 },
+  });
+  assert.equal(income.line.deductionAllowed, 10_000_00);
+  assert.equal(income.line.balancingAdjustmentIncome, 5_000_00);
+  assert.equal(income.line.balancingAdjustmentDeduction, 0);
+  assert.equal(income.line.closingAdjustableValue, 0);
+
+  const deduction = computeDepreciation({
+    incomeYear: 2026,
+    asset: { id: "loss", label: "Disposed below adjustable value", assetClassId: "OTHER_PLANT", cost: 100_000_00, startDate: "2025-07-01", method: "PRIME_COST", effectiveLifeYears: 10, terminationDate: "2026-06-30", terminationValue: 80_000_00 },
+  });
+  assert.equal(deduction.line.deductionAllowed, 10_000_00);
+  assert.equal(deduction.line.balancingAdjustmentIncome, 0);
+  assert.equal(deduction.line.balancingAdjustmentDeduction, 10_000_00);
+});
+
+test("hand checked Australian low-value pool over two income years", () => {
+  // Subdivision 40-E: low-value pool claims 18.75% of current-year additions and 37.5% of opening pool balances.
+  const result = computeDepreciationSchedule({
+    fromIncomeYear: 2026,
+    toIncomeYear: 2027,
+    assets: [{ id: "pool", label: "Low-cost controller", assetClassId: "OTHER_PLANT", cost: 800_00, startDate: "2025-07-01", method: "PRIME_COST", effectiveLifeYears: 4, poolMethod: "LOW_VALUE_POOL" }],
+  });
+  assert.deepEqual(result.summaries.map((summary) => summary.totalDeclineInValueDeduction), [150_00, 243_75]);
+  assert.deepEqual(result.assetLines.map((line) => line.closingAdjustableValue), [650_00, 406_25]);
 });
 
 test("hand checked Division 43 2.5% capital works asset", () => {
@@ -171,6 +203,72 @@ test("hand checked Singapore s19 working-life asset", () => {
   });
   assert.equal(result.yaSummaries[0]?.capitalAllowances, 20_000_00);
   assert.equal(result.assetLines[0]?.closingTaxWrittenDownValue, 100_000_00);
+});
+
+test("hand checked Singapore s14N renovation and refurbishment over three YAs", () => {
+  // IRAS section 14N: qualifying R&R of S$120,000 spread over 3 consecutive YAs gives S$40,000 each YA.
+  const result = computeCapitalAllowances({
+    fromYa: 2027,
+    toYa: 2029,
+    financialYearEndMonth: 9,
+    financialYearEndDay: 30,
+    entityKind: "REIT",
+    assets: [],
+    renovationExpenditures: [{ id: "rr", label: "Retail mall R&R", cost: 120_000_00, incurredDate: "2026-08-01", claimMode: "THREE_YEAR" }],
+  });
+  assert.deepEqual(result.yaSummaries.map((s) => s.section14nDeduction), [40_000_00, 40_000_00, 40_000_00]);
+});
+
+test("hand checked Singapore s14N cap limits a 3-year window", () => {
+  // Section 14N cap: S$300,000 per relevant 3-year period. Two one-year claims of S$250,000 and S$100,000 cap at S$300,000 total.
+  const result = computeCapitalAllowances({
+    fromYa: 2027,
+    toYa: 2027,
+    financialYearEndMonth: 9,
+    financialYearEndDay: 30,
+    entityKind: "REIT",
+    assets: [],
+    renovationExpenditures: [
+      { id: "rr1", label: "First R&R", cost: 250_000_00, incurredDate: "2026-08-01", claimMode: "ONE_YEAR" },
+      { id: "rr2", label: "Second R&R", cost: 100_000_00, incurredDate: "2026-08-15", claimMode: "ONE_YEAR" },
+    ],
+  });
+  assert.equal(result.yaSummaries[0]?.section14nDeduction, 300_000_00);
+  assert.match(result.findings.map((finding) => finding.message).join(" "), /cap/);
+});
+
+test("asset register surfaces low-value pool and s14N records in totals and schedules", () => {
+  const data = seedData();
+  const poolAsset: FixedAsset = {
+    id: "pool-ui",
+    fundId: "coastline",
+    propertyId: null,
+    kind: "AU_DIV40",
+    description: "Low-cost controller",
+    cost: 800_00,
+    startDate: "2025-07-01",
+    assetClassId: "OTHER_PLANT",
+    method: "PRIME_COST",
+    effectiveLifeYears: 4,
+    poolMethod: "LOW_VALUE_POOL",
+  };
+  const auView = assetRegisterView({ ...data, assets: [poolAsset] }, "coastline", ctx(data));
+  assert.equal(auView.rows.find((row) => row.source === "pool")?.deduction, 150_00);
+  assert.deepEqual(auView.schedule.filter((row) => row.kind === "AU_DIV40").slice(0, 2).map((row) => row.deduction), [150_00, 243_75]);
+
+  const rrAsset: FixedAsset = {
+    id: "rr-ui",
+    fundId: "telok-ayer",
+    propertyId: null,
+    kind: "SG_RR",
+    description: "Retail mall R&R",
+    cost: 120_000_00,
+    startDate: "2026-08-01",
+    claimMode: "THREE_YEAR",
+  };
+  const sgView = assetRegisterView({ ...data, assets: [rrAsset] }, "telok-ayer", ctx(data));
+  assert.equal(sgView.rows[0]?.deduction, 40_000_00);
+  assert.deepEqual(sgView.schedule.filter((row) => row.kind === "SG_RR").map((row) => row.deduction), [40_000_00, 40_000_00, 40_000_00]);
 });
 
 test("asset reducer refuses view-only, no-fund and non-Preparing apply-to-TB actions", () => {
@@ -277,6 +375,21 @@ test("asset reducer sanitises records and refuses reload-breaking invalid fields
   const oversizedImport = applyAssetAction(data, { type: "asset-import", fundId: "coastline", assets: Array.from({ length: 2001 }, () => div40Draft) }, ctx(data));
   assert.equal(oversizedImport.ok, false);
   assert.match(oversizedImport.reason, /2,000|2000/);
+});
+
+test("asset reducer validates low-value pool eligibility and section 14N records", () => {
+  const data = seedData();
+  const lowCost = applyAssetAction(data, { type: "asset-add", fundId: "coastline", asset: { ...div40Draft, cost: 950_00, poolMethod: "LOW_VALUE_POOL" } }, ctx(data));
+  assert.equal(lowCost.ok, true);
+  if (lowCost.ok) assert.equal(appDataProblem(lowCost.data), null);
+
+  const tooLarge = applyAssetAction(data, { type: "asset-add", fundId: "coastline", asset: { ...div40Draft, cost: 5_000_00, poolMethod: "LOW_VALUE_POOL" } }, ctx(data));
+  assert.equal(tooLarge.ok, false);
+  assert.match(tooLarge.reason, /Low-value pool/);
+
+  const rr = applyAssetAction(data, { type: "asset-add", fundId: "telok-ayer", asset: { kind: "SG_RR", propertyId: null, description: "Lobby R&R", cost: 120_000_00, startDate: "2026-08-01", claimMode: "THREE_YEAR" } }, ctx(data, "w-l-teo"));
+  assert.equal(rr.ok, true);
+  if (rr.ok) assert.equal(appDataProblem(rr.data), null);
 });
 
 test("seeded asset records pass exact persisted schema", () => {

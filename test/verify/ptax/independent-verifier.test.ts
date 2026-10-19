@@ -189,14 +189,13 @@ test("SG owner-occupied flag should drive owner-occupier residential rates or be
   assert.equal(row?.total, sgOwnerOccupied2026Private(10_000_000));
 });
 
-test("not-modelled cases are rendered as not modelled, excluded from totals, and payment status drives deadlines", () => {
+test("missing-data cases are rendered without guessed amounts, excluded from totals, and payment status drives deadlines", () => {
   const data = seedData();
-  // Tasmania is catalogued but not modelled: move Lakeside Marketplace there to see the not-modelled presentation.
-  Object.assign(profile(data, "wattle-lakeside-marketplace"), { auState: "TAS" });
+  Object.assign(profile(data, "wattle-lakeside-marketplace"), { auLandValue: null });
   const wattleAnnual = propertyTaxView(data, "wattle", { now: NOW });
-  const tas = wattleAnnual.rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
-  assert.equal(tas?.status, "not-modelled");
-  assert.match(tas?.basis ?? "", /Tasmania land tax is not modelled/);
+  const missing = wattleAnnual.rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
+  assert.equal(missing?.status, "missing-data");
+  assert.match(missing?.basis ?? "", /Profile needs taxable land value/);
   assert.equal(wattleAnnual.csv.rows.find((row) => row[0] === "Lakeside Marketplace")?.[5], "Not modelled");
   assert.equal(wattleAnnual.doc.blocks.some((block) => block.kind === "table" && block.rows.some((row) => row.property === "Lakeside Marketplace" && row.total === "Not modelled")), true);
   assert.equal(wattleAnnual.totals.total, wattleAnnual.rows.filter((row) => row.status === "modelled").reduce((sum, row) => sum + row.total, 0));
@@ -204,6 +203,8 @@ test("not-modelled cases are rendered as not modelled, excluded from totals, and
   const allDeadlines = data.funds.flatMap((entry) => ptaxProviders.deadlines?.(data, entry, NOW) ?? []);
   assert.deepEqual(allDeadlines.filter((row) => row.status === "overdue" && row.obligation.startsWith("Land tax")).map((row) => row.obligation), ["Land tax — Wattle Grove Shopping Centre"]);
   assert.deepEqual(allDeadlines.filter((row) => row.status === "overdue" && row.obligation.startsWith("Property tax")).map((row) => row.obligation), ["Property tax — Cecil Exchange"]);
+  assert.equal(allDeadlines.find((row) => row.obligation === "Land tax — Wattle Grove Shopping Centre")?.date, "2026-09-16", "recorded assessment notices override the 30 September estimate");
+  assert.match(propertyTaxView(data, "harbourline", { now: NOW }).rows.find((row) => row.propertyId === "harbourline-harbourline-tower")?.dueLabel ?? "", /estimated/, "properties without a notice disclose the placeholder date");
 
   const paid = applyAction(data, { type: "ptax-record-payment", fundId: "wattle", propertyId: "wattle-wattle-grove-shopping-centre", kind: "annual-tax", period: "land-tax-2026", amount: 1, date: "2026-10-12", reference: "manual verifier" }, { now: NOW, user: user(data, "a-moreno") });
   assert.equal(paid.ok, true);
@@ -257,6 +258,21 @@ test("reducers enforce permissions, validations, audit text, immutability, and p
   if (removed.ok) persistedOk(removed.data, "meranti");
 });
 
+test("assessment notices drive assessed amounts, variance risks and compare assessed sources", () => {
+  const data = seedData();
+  const recorded = applyAction(data, { type: "ptax-record-notice", fundId: "wattle", propertyId: "wattle-coral-coast-central", period: "land-tax-2026", assessedAmount: 1, issueDate: "2026-09-01", dueDate: "2026-10-31", reference: "QRO tiny variance" }, { now: NOW, user: user(data, "a-moreno") });
+  assert.equal(recorded.ok, true);
+  if (!recorded.ok) return;
+  const row = propertyTaxView(recorded.data, "wattle", { now: NOW }).rows.find((entry) => entry.propertyId === "wattle-coral-coast-central");
+  assert.equal(row?.dueDate, "2026-10-31");
+  assert.equal(row?.assessedAmount, 1);
+  assert.match(row?.assessedLabel ?? "", /below modelled/);
+  assert.ok((ptaxProviders.risks?.(recorded.data, fund(recorded.data, "wattle"), NOW) ?? []).some((risk) => risk.title === "Coral Coast Central: assessed differs from modelled"));
+  const sources = ptaxProviders.compareSources?.(recorded.data, fund(recorded.data, "wattle"), NOW) ?? [];
+  assert.ok(sources.some((source) => source.id === "ptax-annual-assessed" && source.lines.some((line) => line.ref === "ptax.assessed.wattle-coral-coast-central" && line.amount === 1)));
+  persistedOk(recorded.data, "wattle");
+});
+
 test("trust treatment note distinguishes listed/fixed AMIT assumptions from trust surcharge cases", () => {
   // NSW: Revenue NSW says fixed trusts are eligible for the threshold, while special trusts do not receive it and foreign-beneficiary trusts can be liable for surcharge land tax on residential land.
   // VIC: SRO says the trust surcharge may not apply to fixed and unit trusts where beneficiaries/unit holders and shares are notified; absentee surcharge is additional where an absentee beneficiary exists.
@@ -292,17 +308,21 @@ test("WA and SA land tax and duty for the seeded properties match figures worked
   assert.equal(banksia.surcharge, mulBps(26_639_821_750 - 30_000_000, 14));
   assert.deepEqual([banksia.tax, banksia.surcharge, banksia.total], [700_568_241, 37_253_750, 737_821_991]);
   assert.equal(banksia.basisTitle, "Western Australia land tax scale; WA Metropolitan Region Improvement Tax");
+  assert.match(banksia.basis, /Includes MRIT: Perth metropolitan region/);
+
+  const noMritData = seedData();
+  Object.assign(profile(noMritData, "wattle-banksia-plaza"), { auMetropolitanRegion: false });
+  const noMrit = row(propertyTaxView(noMritData, "wattle", { now: NOW }).rows, "wattle-banksia-plaza");
+  assert.deepEqual([noMrit.tax, noMrit.surcharge, noMrit.total], [700_568_241, 0, 700_568_241]);
+  assert.match(noMrit.basis, /No MRIT: outside the metropolitan region/);
 
   // Fremantle Wharf Offices (WA, land A$118,856,820.50).
   const fremantle = row(kurrajong, "kurrajong-fremantle-wharf-offices");
   assert.deepEqual([fremantle.tax, fremantle.surcharge, fremantle.total], [306_632_711, 16_597_955, 323_230_666]);
 
-  // Duties: WA general rate, A$28,453 + A$5.15 for every A$100 or part above A$725,000. Lakeside (SA, 2012) stays unmodelled.
+  // Duties: WA general rate, A$28,453 + A$5.15 for every A$100 or part above A$725,000.
   const wattleDuties = dutiesView(data, "wattle", { now: NOW }).rows;
   assert.deepEqual([row(wattleDuties, "wattle-banksia-plaza").status, row(wattleDuties, "wattle-banksia-plaza").totalDuty], ["modelled", 2_845_300 + Math.ceil((52_249_287_500 - 72_500_000) / 10_000) * 515]);
   assert.equal(row(wattleDuties, "wattle-banksia-plaza").totalDuty, 2_689_949_985);
-  const lakesideDuty = row(wattleDuties, "wattle-lakeside-marketplace");
-  assert.equal(lakesideDuty.status, "not-modelled");
-  assert.match(lakesideDuty.basis, /contracts from 1 July 2018, when duty on non-residential land ended; this contract is dated 21 May 2012\./);
   assert.equal(row(dutiesView(data, "kurrajong", { now: NOW }).rows, "kurrajong-fremantle-wharf-offices").totalDuty, 1_407_805_470);
 });

@@ -14,6 +14,20 @@ test("Head of Tax creates a fund on Data and opens it in Distributions", async (
   assert.equal(app.store.getState().ui.selectedFundId, "alpha-office-trust");
 });
 
+test("Head of Tax imports funds from CSV preview all-or-nothing", async () => {
+  const app = await mountApp({ hash: "#/data", user: "a-moreno", now: "2026-10-12T09:00:00" });
+  assert.match(app.text(), /Import funds/);
+  await app.type(
+    app.byLabel("CSV"),
+    "market,name,sector,listed,periodStart,periodEnd,unitsOnIssue,governance,assessmentYear\nAU,Bulk UI Trust,Office,no,2025-07-01,2026-06-30,1000,no-agent,\nSG,Bulk UI REIT,Logistics,yes,2026-07-01,2026-09-30,2000,agent-signs-off,2027",
+  );
+  assert.match(app.text(), /2 funds ready/);
+  await app.click(app.byRole("button", "Import funds"));
+  assert.match(app.text(), /Bulk UI Trust/);
+  assert.match(app.text(), /Bulk UI REIT/);
+  assert.equal(app.store.getState().data.funds.some((fund) => fund.id === "bulk-ui-trust"), true);
+});
+
 test("Data tables use shared table and non-danger row-action styling", async () => {
   const app = await mountApp({ hash: "#/data", user: "a-moreno", now: "2026-10-12T09:00:00" });
   assert.equal(app.$("table").classList.contains("dt"), true);

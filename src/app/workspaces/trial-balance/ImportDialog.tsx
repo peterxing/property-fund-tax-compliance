@@ -1,6 +1,7 @@
 import { useDeferredValue, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { Fund, FundId, TbView } from "../../../domain/types.ts";
 import { integer } from "../../../domain/format.ts";
+import { readImportFile, XLSX_IMPORT_LIMITS } from "../../imports/index.ts";
 import { useDispatch } from "../../state.tsx";
 import { Button, Dialog, Field, Icon, TextArea } from "../../ui/index.ts";
 import { HEADER_HELP, MAX_IMPORT_BYTES, checkImportFile, parseTbCsv, type CsvIssue, type TbCsvResult } from "./csv.ts";
@@ -22,6 +23,7 @@ export interface ImportDialogProps {
 export function ImportDialog({ fund, view, open, onClose, onImported }: ImportDialogProps) {
   const [text, setText] = useState("");
   const [fileProblem, setFileProblem] = useState<string | null>(null);
+  const [fileNote, setFileNote] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const latestFile = useRef(0);
   const fileId = useId();
@@ -42,6 +44,7 @@ export function ImportDialog({ fund, view, open, onClose, onImported }: ImportDi
     latestFile.current++;
     setText("");
     setFileProblem(null);
+    setFileNote(null);
     setReading(false);
   };
   const close = (): void => {
@@ -54,22 +57,31 @@ export function ImportDialog({ fund, view, open, onClose, onImported }: ImportDi
     if (!file) return;
     const mine = ++latestFile.current;
     setText("");
-    const problem = checkImportFile(file);
+    setFileNote(null);
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    const problem = isXlsx
+      ? file.size === 0
+        ? "The file is empty."
+        : file.size > XLSX_IMPORT_LIMITS.maxBytes
+          ? `This workbook is ${Number((Math.ceil((file.size / XLSX_IMPORT_LIMITS.maxBytes) * 100) / 100).toFixed(2))} MB. The limit is 1 MB.`
+          : null
+      : checkImportFile(file);
     setFileProblem(problem);
     if (problem !== null) {
       setReading(false);
       return;
     }
     setReading(true);
-    file.text().then(
+    readImportFile(file).then(
       (content) => {
         if (latestFile.current !== mine) return;
-        setText(content);
+        setText(content.text);
+        setFileNote(content.note ?? null);
         setReading(false);
       },
-      () => {
+      (error) => {
         if (latestFile.current !== mine) return;
-        setFileProblem("The file could not be read. Choose it again.");
+        setFileProblem(error instanceof Error ? error.message : "The file could not be read. Choose it again.");
         setReading(false);
       },
     );
@@ -79,6 +91,7 @@ export function ImportDialog({ fund, view, open, onClose, onImported }: ImportDi
     latestFile.current++;
     setReading(false);
     setFileProblem(null);
+    setFileNote(null);
     setText(value);
   };
 
@@ -94,18 +107,18 @@ export function ImportDialog({ fund, view, open, onClose, onImported }: ImportDi
       <div className="tb-import">
         <div className="field">
           <label htmlFor={fileId} className="field__label">
-            CSV file
+            CSV or Excel file
           </label>
-          <input id={fileId} type="file" className="tb-import__file" accept=".csv,.tsv,.txt,text/csv,text/plain" aria-describedby={fileHintId} onChange={onFile} />
+          <input id={fileId} type="file" className="tb-import__file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-describedby={fileHintId} onChange={onFile} />
           <p id={fileHintId} className="field__hint">
-            Up to {Math.round(MAX_IMPORT_BYTES / (1024 * 1024))} MB. Download CSV from this page gives the layout.
+            Up to {Math.round(MAX_IMPORT_BYTES / (1024 * 1024))} MB. Excel imports read the first sheet. Download CSV from this page gives the layout.
           </p>
         </div>
         <Field label="Or paste the CSV text" hint="A file you choose appears here too, so you can correct a line before importing.">
           <TextArea className="tb-import__paste" rows={7} spellCheck={false} autoComplete="off" wrap="off" value={text} onValueChange={onType} />
         </Field>
         <div className="tb-import__result" aria-live="polite" aria-atomic="false">
-          <Result summaryId={summaryId} text={deferred} parsed={parsed} plan={plan} reading={reading} fileProblem={fileProblem} currency={fund.currency} />
+          <Result summaryId={summaryId} text={deferred} parsed={parsed} plan={plan} reading={reading} fileProblem={fileProblem} fileNote={fileNote} currency={fund.currency} />
         </div>
       </div>
     </Dialog>
@@ -145,14 +158,15 @@ interface ResultProps {
   plan: ImportPlan | null;
   reading: boolean;
   fileProblem: string | null;
+  fileNote: string | null;
   currency: Fund["currency"];
 }
 
-function Result({ summaryId, text, parsed, plan, reading, fileProblem, currency }: ResultProps) {
+function Result({ summaryId, text, parsed, plan, reading, fileProblem, fileNote, currency }: ResultProps) {
   if (fileProblem !== null) return <Summary id={summaryId} tone="bad" text={fileProblem} />;
   if (reading) return <Summary id={summaryId} tone="info" text="Reading the file…" />;
   if (text.trim() === "" || parsed === null) {
-    return <Summary id={summaryId} tone="info" text="Choose a CSV file or paste its text to see what would change." />;
+    return <Summary id={summaryId} tone="info" text="Choose a CSV or Excel file, or paste CSV text, to see what would change." />;
   }
   if (parsed.fatal !== null) return <Summary id={summaryId} tone="bad" text={parsed.fatal} />;
   if (!plan) {
@@ -167,6 +181,7 @@ function Result({ summaryId, text, parsed, plan, reading, fileProblem, currency 
   }
   return (
     <>
+      {fileNote ? <Summary id={`${summaryId}-file`} tone="info" text={fileNote} /> : null}
       <Summary id={summaryId} tone="ok" text={`${plural(plan.count, "account")} ready to import.`} />
       <PlanFacts plan={plan} currency={currency} />
       <Issues title="Noted" issues={parsed.warnings} total={parsed.warningCount} />

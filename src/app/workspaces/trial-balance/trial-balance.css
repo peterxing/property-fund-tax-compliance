@@ -189,6 +189,33 @@
   font-size: var(--text-small);
   color: var(--muted-foreground);
 }
+.tb-policy {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+}
+.tb-policy p {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--muted-foreground);
+}
+.tb-policy__controls {
+  display: grid;
+  grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr);
+  gap: var(--space-3) var(--space-5);
+  align-items: start;
+}
+.tb-policy__shares {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-3);
+}
+@media (max-width: 48rem) {
+  .tb-policy__controls {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ---- accounts and tax mapping ---- */
 .tb-toolbar {

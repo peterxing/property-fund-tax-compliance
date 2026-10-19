@@ -1,5 +1,5 @@
 // Shared helpers for the Singapore market module: typed lookups, exact (to-the-cent) allocation and wording helpers.
-import type { AppData, Cents, Fund, FundId, Holder, ISODate, SgFund, SgHolder, SgHolderClass, SgNotice } from "../types.ts";
+import type { AppData, Cents, Fund, FundId, Holder, ISODate, SgFund, SgFundSection, SgHolder, SgHolderClass, SgNotice } from "../types.ts";
 import { dateLabel } from "../format.ts";
 
 export function requireSgFund(fund: Fund): SgFund {
@@ -37,6 +37,15 @@ export const SG_CLASS_LABEL: Record<SgHolderClass, string> = {
   "nr-fund": "Qualifying non-resident fund",
   other: "Other unitholder",
 };
+
+export function sgFundSectionLabel(section?: SgFundSection): string {
+  return section ? `section ${section}` : "section 13D/13U/13V";
+}
+
+export function sgHolderStatusLabel(holder: Pick<SgHolder, "sgClass" | "sgFundSection">): string {
+  const label = SG_CLASS_LABEL[holder.sgClass];
+  return holder.sgClass === "nr-fund" ? `${label} · ${sgFundSectionLabel(holder.sgFundSection)}` : label;
+}
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 

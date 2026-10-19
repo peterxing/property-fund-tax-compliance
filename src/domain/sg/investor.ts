@@ -97,7 +97,7 @@ function s45gView(fund: SgFund, calc: FundCalc, notice: SgNotice | null, now: Da
   const rows = calc.holders
     .filter((h) => h.withheld >= 1)
     .map((h) => {
-      const t = holderTreatment(sgClassOf(h.holder), paymentDate);
+      const t = holderTreatment(sgClassOf(h.holder), paymentDate, "sgFundSection" in h.holder ? h.holder.sgFundSection : undefined);
       return {
         holder: h.holder.holder,
         country: h.holder.country,

@@ -72,7 +72,7 @@ export function sgScenario(data: AppData, fundIn: Fund, calc: FundCalc, value?: 
     const taxable = mulRatio(income, Math.round(requested * 10_000), 1_000_000);
     const position = trusteePosition(date, income, taxable);
     const parts = allocateAcrossRegister(taxable, calc.holders.map((h) => h.holder.units), fund.unitsOnIssue).holders;
-    const withheld = sumOf(calc.holders.map((h, i) => withholdingOn(parts[i] ?? 0, holderTreatment(sgClassOf(h.holder), date).rateBps)));
+    const withheld = sumOf(calc.holders.map((h, i) => withholdingOn(parts[i] ?? 0, holderTreatment(sgClassOf(h.holder), date, "sgFundSection" in h.holder ? h.holder.sgFundSection : undefined).rateBps)));
     scenarioOutcome = { taxable, retained: position.retained, trusteeTax: position.trusteeTax, withheld, meets: position.passes };
   }
 

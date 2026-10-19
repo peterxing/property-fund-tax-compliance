@@ -12,6 +12,7 @@ export type AppPath =
   | "/property-taxes"
   | "/assets"
   | "/compare"
+  | "/due-diligence"
   | "/bulk-review"
   | "/analytics"
   | "/calendar"
@@ -31,6 +32,7 @@ export type WorkspaceId =
   | "property-taxes"
   | "assets"
   | "compare"
+  | "due-diligence"
   | "bulk-review"
   | "analytics"
   | "calendar"
@@ -58,6 +60,7 @@ export const ROUTES: readonly RouteDef[] = [
   { path: "/property-taxes", id: "property-taxes", label: "Property taxes", scope: "fund" },
   { path: "/assets", id: "assets", label: "Assets & allowances", scope: "fund" },
   { path: "/compare", id: "compare", label: "Compare", scope: "fund" },
+  { path: "/due-diligence", id: "due-diligence", label: "Due diligence", scope: "fund" },
   { path: "/bulk-review", id: "bulk-review", label: "Bulk review", scope: "portfolio" },
   { path: "/analytics", id: "analytics", label: "Analytics", scope: "portfolio" },
   { path: "/calendar", id: "calendar", label: "Compliance calendar", scope: "portfolio" },

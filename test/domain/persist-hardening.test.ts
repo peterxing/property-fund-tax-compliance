@@ -224,7 +224,10 @@ test("deterministic damaged persistence either renders safely or falls back", ()
   assert.deepEqual(failures.slice(0, 5), []);
   assert.ok(accepted > 0, "some valid unusual mutations should still load");
   assert.ok(rejected > 100, "hostile mutations should be rejected");
-  assert.equal(`${accepted}/${rejected}`, "24/196"); // pinned so a change in what the validator accepts is a deliberate, reviewed change
+  // Pinned so a change in what the validator accepts is a deliberate, reviewed change. v3 (19 Oct 2026): the seed gained notices,
+  // assets and obligations, which moves the seeded random picks; the 25 accepted mutations were audited and are all legal values
+  // (negative or nil ledger and trial-balance amounts, a nil optional share, a fractional effective life, a string version value).
+  assert.equal(`${accepted}/${rejected}`, "25/195");
 });
 
 test("valid but unusual states still load and render", () => {

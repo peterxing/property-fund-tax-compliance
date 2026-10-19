@@ -9,7 +9,7 @@ import { computePropertyTax, PROPERTY_TAX_USAGES } from "../../engine/propertyTa
 import { addDays, toISO, yearOf } from "../../engine/dates.ts";
 import { dateLabel, money, slug } from "../format.ts";
 import type { AppData, Cents, CsvModel, DocModel, Fund, FundId, Property } from "../types.ts";
-import type { AnnualTaxRow, DutiesView, DutyRow, PropertyTaxProfile, PropertyTaxView, PtaxKpis } from "./types.ts";
+import type { AnnualTaxRow, DutiesView, DutyRow, PropertyTaxProfile, PropertyTaxView, PtaxKpis, PtaxNotice } from "./types.ts";
 export type * from "./types.ts";
 
 type Modelled<T> = { ok: true; value: T } | { ok: false; reason: string; ruleIds?: string[] };
@@ -19,7 +19,7 @@ const TAX_WORKSPACE = "/property-taxes";
 export const surchargeColumnLabel = (market: Fund["market"]): string => (market === "AU" ? "Surcharge or MRIT" : "Rebate");
 
 export const AU_LAND_TAX_ASSUMPTION =
-  "Australian land tax profiles treat listed property funds as trust owners by default. Victoria applies the trust scale while Trust surcharge applies is Yes; NSW special-trust no-threshold treatment is available by changing Owner kind to Special trust; Queensland uses the company/trust scale. South Australia uses its trust rates while Trust surcharge applies is Yes; the seeded listed funds have it set to No because RevenueSA assesses listed and widely held public unit trust schemes at the general rates. Western Australia has one scale for every owner, plus the Metropolitan Region Improvement Tax, which is applied to every WA property as if it were in the Perth metropolitan region. Review fixed/unit-trust notifications before relying on the result.";
+  "Australian land tax profiles treat listed property funds as trust owners by default. Victoria applies the trust scale while Trust surcharge applies is Yes; NSW special-trust no-threshold treatment is available by changing Owner kind to Special trust; Queensland uses the company/trust scale. South Australia uses its trust rates while Trust surcharge applies is Yes; the seeded listed funds have it set to No because RevenueSA assesses listed and widely held public unit trust schemes at the general rates. Western Australia has one scale for every owner, plus the Metropolitan Region Improvement Tax for properties marked as in the Perth metropolitan region; omitted saved flags default to metropolitan. Review fixed/unit-trust notifications before relying on the result.";
 
 function annualPeriod(fund: Fund, year: number): string {
   return fund.market === "AU" ? `land-tax-${year}` : `property-tax-${year}`;
@@ -37,6 +37,32 @@ function paymentsFor(profile: PropertyTaxProfile, kind: "annual-tax" | "duty", p
   return profile.payments.filter((payment) => payment.kind === kind && payment.period === period);
 }
 
+function noticeFor(profile: PropertyTaxProfile, period: string): PtaxNotice | null {
+  return profile.notices?.find((notice) => notice.period === period) ?? null;
+}
+
+function varianceLabel(variance: number, currency: Fund["currency"]): string {
+  if (variance === 0) return "matches modelled";
+  return `${money(Math.abs(variance), currency)} ${variance > 0 ? "above" : "below"} modelled`;
+}
+
+function assessmentFields(fund: Fund, period: string, modelledTotal: number, estimatedDueDate: string | null, profile: PropertyTaxProfile | null): Pick<AnnualTaxRow, "period" | "dueDate" | "dueLabel" | "dueEstimated" | "notice" | "assessedAmount" | "assessedVariance" | "assessedLabel"> {
+  const notice = profile ? noticeFor(profile, period) : null;
+  const dueDate = notice?.dueDate ?? estimatedDueDate;
+  const dueEstimated = notice === null && estimatedDueDate !== null;
+  const assessedVariance = notice ? notice.assessedAmount - modelledTotal : null;
+  return {
+    period,
+    dueDate,
+    dueLabel: dueDate ? `${dateLabel(dueDate)}${dueEstimated ? " (estimated)" : ""}` : "Not calculated",
+    dueEstimated,
+    notice,
+    assessedAmount: notice?.assessedAmount ?? null,
+    assessedVariance,
+    assessedLabel: notice ? `Assessed ${money(notice.assessedAmount, fund.currency)}; ${varianceLabel(assessedVariance ?? 0, fund.currency)}` : "No assessment notice recorded",
+  };
+}
+
 function ruleTitle(id: string): string {
   if (id.startsWith("nsw.land-tax.general")) return "NSW land tax thresholds and rates";
   if (id.startsWith("nsw.land-tax.special-trust")) return "NSW special-trust land tax";
@@ -51,6 +77,11 @@ function ruleTitle(id: string): string {
   if (id.startsWith("wa.land-tax.mrit")) return "WA Metropolitan Region Improvement Tax";
   if (id.startsWith("sa.land-tax.general")) return "South Australia land tax general rates";
   if (id.startsWith("sa.land-tax.trust")) return "South Australia land tax trust rates";
+  if (id.startsWith("tas.land-tax.general")) return "Tasmania land tax general rates";
+  if (id.startsWith("tas.land-tax.foreign")) return "Tasmania foreign investor land tax surcharge";
+  if (id.startsWith("act.land-tax.residential")) return "ACT residential land tax";
+  if (id.startsWith("act.land-tax.foreign")) return "ACT foreign ownership surcharge for land tax";
+  if (id.startsWith("nt.land-tax.nil")) return "Northern Territory: no annual land tax";
   if (id.startsWith("property-tax.other")) return "10% rule for non-residential property and vacant land";
   if (id.startsWith("property-tax.noor")) return "Non-owner-occupier residential property tax rates";
   if (id.startsWith("property-tax.ootr")) return "Owner-occupier residential property tax rates";
@@ -63,8 +94,17 @@ function ruleTitle(id: string): string {
   if (id.startsWith("qld.surcharge")) return "Queensland additional foreign acquirer duty";
   if (id.startsWith("wa.transfer")) return "Western Australia transfer duty general rate";
   if (id.startsWith("wa.surcharge")) return "Western Australia foreign transfer duty";
+  if (id.startsWith("wa.landholder")) return "Western Australia landholder duty";
   if (id.startsWith("sa.transfer")) return "South Australia conveyance duty rates";
+  if (id.startsWith("sa.qualifying-land.phaseout")) return "South Australia qualifying-land duty phase-out";
   if (id.startsWith("sa.qualifying-land")) return "South Australia: no duty on qualifying land";
+  if (id.startsWith("sa.surcharge")) return "South Australia foreign ownership surcharge";
+  if (id.startsWith("sa.landholder")) return "South Australia landholder duty";
+  if (id.startsWith("tas.transfer")) return "Tasmania property transfer duty rates";
+  if (id.startsWith("tas.surcharge")) return "Tasmania foreign investor duty surcharge";
+  if (id.startsWith("act.transfer.residential")) return "ACT non-commercial conveyance duty rates";
+  if (id.startsWith("act.transfer.commercial")) return "ACT commercial conveyance duty phase-out";
+  if (id.startsWith("nt.transfer")) return "Northern Territory stamp duty on land";
   if (id.startsWith("bsd.")) return "Buyer's Stamp Duty (BSD)";
   if (id.startsWith("absd.")) return "Additional Buyer's Stamp Duty (ABSD)";
   if (id.startsWith("ssd.")) return "Seller's Stamp Duty (SSD)";
@@ -136,6 +176,7 @@ function landTaxGroups(data: AppData, fund: Fund, assessmentYear: number): Map<s
           taxableLandValue: profile.auLandValue ?? 0,
           residential: profile.auResidential,
           residentialShareBps: profile.auResidentialShareBps ?? undefined,
+          metropolitanRegion: profile.auState === "WA" ? profile.auMetropolitanRegion ?? true : undefined,
         })),
         owner: {
           kind: first.profile.auOwnerKind!,
@@ -157,6 +198,7 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
     const profile = profileFor(data, property.id);
     const state = profile?.auState ?? null;
     if (!profile || profile.auLandValue === null || !state || profile.auOwnerKind === null) {
+      const period = annualPeriod(fund, year);
       return {
         propertyId: property.id,
         propertyName: property.name,
@@ -169,8 +211,7 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
         tax: 0,
         surcharge: 0,
         total: 0,
-        dueDate: null,
-        dueLabel: "Not calculated",
+        ...assessmentFields(fund, period, 0, null, profile ?? null),
         paid: false,
         payments: [],
         status: "missing-data",
@@ -179,6 +220,7 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
       };
     }
     if (coverage(state, "landTaxCoverage") === "NOT_MODELLED") {
+      const period = annualPeriod(fund, year);
       return {
         propertyId: property.id,
         propertyName: property.name,
@@ -191,8 +233,8 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
         tax: 0,
         surcharge: 0,
         total: 0,
-        dueDate: null,
-        dueLabel: `Assessment year ${year}; payment date not modelled`,
+        ...assessmentFields(fund, period, 0, null, profile),
+        dueLabel: noticeFor(profile, period) ? dateLabel(noticeFor(profile, period)!.dueDate) : `Assessment year ${year}; payment date not modelled`,
         paid: false,
         payments: [],
         status: "not-modelled",
@@ -203,6 +245,7 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
     const result = grouped.get(property.id);
     const allocation = result?.properties.find((entry) => entry.id === property.id);
     if (!result || !allocation) {
+      const period = annualPeriod(fund, year);
       return {
         propertyId: property.id,
         propertyName: property.name,
@@ -215,8 +258,8 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
         tax: 0,
         surcharge: 0,
         total: 0,
-        dueDate: null,
-        dueLabel: `Assessment year ${year}; payment date not modelled`,
+        ...assessmentFields(fund, period, 0, null, profile),
+        dueLabel: noticeFor(profile, period) ? dateLabel(noticeFor(profile, period)!.dueDate) : `Assessment year ${year}; payment date not modelled`,
         paid: false,
         payments: [],
         status: "not-modelled",
@@ -225,8 +268,11 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
       };
     }
     const period = annualPeriod(fund, result.assessmentYear);
-    const dueDate = `${result.assessmentYear}-09-30`;
+    const estimatedDueDate = `${result.assessmentYear}-09-30`;
     const ruleIds = result.ruleVersion.split("+");
+    const mritBasis = state === "WA" ? (profile.auMetropolitanRegion === false ? " No MRIT: outside the metropolitan region." : " Includes MRIT: Perth metropolitan region.") : "";
+    const assessment = assessmentFields(fund, period, allocation.totalTax, estimatedDueDate, profile);
+    const varianceNote = assessment.assessedVariance !== null && Math.abs(assessment.assessedVariance) > 100 ? [`Assessed differs from modelled by ${money(Math.abs(assessment.assessedVariance), fund.currency)}.`] : [];
     return {
       propertyId: property.id,
       propertyName: property.name,
@@ -234,17 +280,16 @@ function auAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
       stateOrUsage: stateLabel(state),
       value: profile.auLandValue,
       valueLabel: money(profile.auLandValue, fund.currency),
-      basis: "Owner-level liability apportioned by taxable land value.",
+      basis: `Owner-level liability apportioned by taxable land value.${mritBasis}`,
       basisTitle: titleFor(ruleIds, "Land tax"),
       tax: allocation.apportionedGeneralTax,
       surcharge: allocation.apportionedSurchargeTax,
       total: allocation.totalTax,
-      dueDate,
-      dueLabel: dateLabel(dueDate),
+      ...assessment,
       paid: paid(profile, "annual-tax", period),
       payments: paymentsFor(profile, "annual-tax", period),
       status: "modelled",
-      notes: [...result.notes, AU_LAND_TAX_ASSUMPTION],
+      notes: [...varianceNote, ...result.notes, AU_LAND_TAX_ASSUMPTION],
       ruleIds,
     };
   });
@@ -254,6 +299,7 @@ function sgAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
   return propertiesOf(data, fund.id).map((property) => {
     const profile = profileFor(data, property.id);
     if (!profile || profile.sgAnnualValue === null || profile.sgUsage === null) {
+      const period = annualPeriod(fund, year);
       return {
         propertyId: property.id,
         propertyName: property.name,
@@ -266,8 +312,7 @@ function sgAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
         tax: 0,
         surcharge: 0,
         total: 0,
-        dueDate: null,
-        dueLabel: "Not calculated",
+        ...assessmentFields(fund, period, 0, null, profile ?? null),
         paid: false,
         payments: [],
         status: "missing-data",
@@ -282,8 +327,10 @@ function sgAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
       segments: [{ id: property.id, from: toISO(year, 1, 1), to: toISO(year, 12, 31), annualValue: profile.sgAnnualValue, usage, residentialType: usage === "OWNER_OCCUPIED_RESIDENTIAL" ? "PRIVATE" : undefined }],
     });
     const period = annualPeriod(fund, year);
-    const dueDate = result.deadlines.paymentDueDate ?? null;
+    const estimatedDueDate = result.deadlines.paymentDueDate ?? null;
     const ruleIds = result.ruleVersion.split("+");
+    const assessment = assessmentFields(fund, period, result.netTax, estimatedDueDate, profile);
+    const varianceNote = assessment.assessedVariance !== null && Math.abs(assessment.assessedVariance) > 100 ? [`Assessed differs from modelled by ${money(Math.abs(assessment.assessedVariance), fund.currency)}.`] : [];
     return {
       propertyId: property.id,
       propertyName: property.name,
@@ -296,12 +343,12 @@ function sgAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
       tax: result.grossTax,
       surcharge: -result.rebate,
       total: result.netTax,
-      dueDate,
-      dueLabel: dueDate ? dateLabel(dueDate) : "No payment date",
+      ...assessment,
+      dueLabel: assessment.dueLabel === "Not calculated" ? "No payment date" : assessment.dueLabel,
       paid: paid(profile, "annual-tax", period),
       payments: paymentsFor(profile, "annual-tax", period),
       status: "modelled",
-      notes: result.notes,
+      notes: [...varianceNote, ...result.notes],
       ruleIds,
     };
   });
@@ -310,8 +357,8 @@ function sgAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
 function annualCsv(fund: Fund, rows: AnnualTaxRow[]): CsvModel {
   return {
     fileName: `${slug(fund.name)}-property-tax.csv`,
-    columns: ["Property", "Location", fund.market === "AU" ? "State" : "Usage", "Tax base", "Basis", "Tax", surchargeColumnLabel(fund.market), "Total", "Due", "Status"],
-    rows: rows.map((row) => [row.propertyName, row.location, row.stateOrUsage, row.value === null ? "" : row.value / 100, row.status === "modelled" ? `${row.basisTitle} (${row.ruleIds.join("; ")})` : row.basis, row.status === "modelled" ? row.tax / 100 : "Not modelled", row.status === "modelled" ? row.surcharge / 100 : "Not modelled", row.status === "modelled" ? row.total / 100 : "Not modelled", row.dueLabel, row.paid ? "Paid" : row.status]),
+    columns: ["Property", "Location", fund.market === "AU" ? "State" : "Usage", "Tax base", "Basis", "Tax", surchargeColumnLabel(fund.market), "Total", "Assessed", "Due", "Status"],
+    rows: rows.map((row) => [row.propertyName, row.location, row.stateOrUsage, row.value === null ? "" : row.value / 100, row.status === "modelled" ? `${row.basisTitle} (${row.ruleIds.join("; ")})` : row.basis, row.status === "modelled" ? row.tax / 100 : "Not modelled", row.status === "modelled" ? row.surcharge / 100 : "Not modelled", row.status === "modelled" ? row.total / 100 : "Not modelled", row.assessedAmount === null ? "" : row.assessedAmount / 100, row.dueLabel, row.paid ? "Paid" : row.status]),
   };
 }
 
@@ -332,9 +379,10 @@ function annualDoc(fund: Fund, rows: AnnualTaxRow[], totals: PropertyTaxView["to
           { key: "tax", label: "Tax", align: "right" },
           { key: "surcharge", label: surchargeColumnLabel(fund.market), align: "right" },
           { key: "total", label: "Total", align: "right" },
+          { key: "assessed", label: "Assessed", align: "right" },
         ],
-        rows: rows.map((row) => ({ property: row.propertyName, basis: row.status === "modelled" ? row.basisTitle : row.basis, tax: row.status === "modelled" ? money(row.tax, fund.currency) : "Not modelled", surcharge: row.status === "modelled" ? money(row.surcharge, fund.currency) : "Not modelled", total: row.status === "modelled" ? money(row.total, fund.currency) : "Not modelled" })),
-        totalRow: { property: "Total", basis: "", tax: money(totals.tax, fund.currency), surcharge: money(totals.surcharge, fund.currency), total: money(totals.total, fund.currency) },
+        rows: rows.map((row) => ({ property: row.propertyName, basis: row.status === "modelled" ? row.basisTitle : row.basis, tax: row.status === "modelled" ? money(row.tax, fund.currency) : "Not modelled", surcharge: row.status === "modelled" ? money(row.surcharge, fund.currency) : "Not modelled", total: row.status === "modelled" ? money(row.total, fund.currency) : "Not modelled", assessed: row.assessedAmount === null ? "No notice" : money(row.assessedAmount, fund.currency) })),
+        totalRow: { property: "Total", basis: "", tax: money(totals.tax, fund.currency), surcharge: money(totals.surcharge, fund.currency), total: money(totals.total, fund.currency), assessed: "" },
       },
     ],
     footnotes: Array.from(new Set(rows.flatMap((row) => row.notes))).slice(0, 8),

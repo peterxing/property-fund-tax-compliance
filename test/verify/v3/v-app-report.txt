@@ -1,0 +1,30 @@
+v-app verifier report
+
+Files changed:
+- test/verify/v3/v-app-domain.test.ts
+- test/verify/v3/v-app-dom.test.tsx
+- test/verify/v3/v-app-report.txt
+
+Tests:
+- Domain verifier: 15 tests, 13 pass, 2 skipped defects.
+- DOM verifier: 6 tests, all pass.
+- Combined targeted run: 21 tests, 19 pass, 2 skipped.
+- Typecheck filter for test/verify/v3: clean.
+
+G8 behaviours checked:
+- App-exported workbooks round-trip through xlsxToCsv, including sheet name, rows and RFC 4180 quoting.
+- Cell kinds: shared strings, rich shared-string runs, inline strings, numbers, booleans, cached formulas, errors, 1904 dates and 1900 serial 60.
+- Hostile files fail fast with readable messages under asserted bounds: >1 MB file, >128 entries, unsafe .. path, ZIP64 marker, encryption flag, unknown compression method, per-entry >4 MB, total >8 MB, >2,000 rows, >200 columns, >32,767-char text, DTD/entity declaration, XML depth >64, XML tokens >300,000, and empty ZIP.
+- Import paths: .xlsx through Trial balance, GST ledger, Compare, Data funds, Data holders, Data properties and Assets produced the same app records/parsed UI result as equivalent CSV.
+- Fictitious 1900-02-29 is read as specified; Assets import rejects it as an invalid date.
+
+Defects:
+- G5 excess expense allocation: existing skipped defect remains. A custom allocation can leave excess deductions as “not attributed”; if not preserved for loss treatment, deductions are effectively lost.
+- G8 Data > Properties import accepts Excel serial 60 / 1900-02-29. Evidence: parsePropertiesCsv only checks YYYY-MM-DD shape, so 1900-02-29 previews/imports instead of returning a readable invalid-date error.
+
+Known gaps:
+- No browser visual/axe checks.
+
+Lead follow-up (19 Oct 2026): both defects are fixed and their tests now run.
+- G5: no component goes below nil; deductions above a stream's income are set against the remaining rent, interest and foreign income, then the TARP gains, pro rata (ATO, "Calculating AMIT income – trust components"). Only what is left is shown, as the trust's tax loss carried forward.
+- G8: the properties importer checks for a real calendar date and reports "acquired must be a valid YYYY-MM-DD date".

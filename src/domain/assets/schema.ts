@@ -33,6 +33,8 @@ const div40 = shape({
   method: oneOf(["DIMINISHING_VALUE", "PRIME_COST"]),
   effectiveLifeYears: optional(positiveNumber),
   taxableUseBps: optional(bps),
+  /** Optional saved field; absent means no pool allocation. */
+  poolMethod: optional(literal("LOW_VALUE_POOL")),
 });
 
 const div43 = shape({
@@ -58,6 +60,13 @@ const sgPlant = shape({
   claimInitialAllowance: optional(bool),
 });
 
+const sgRenovation = shape({
+  ...base,
+  kind: literal("SG_RR"),
+  /** Optional saved field; absent defaults to the engine's section 14N mode for the incurred YA. */
+  claimMode: optional(oneOf(["THREE_YEAR", "ONE_YEAR"])),
+});
+
 const borrowing = shape({
   ...base,
   kind: literal("AU_BORROWING"),
@@ -70,8 +79,9 @@ export const fixedAsset: Rule = (value, at) => {
   if (kind === "AU_DIV40") div40(value, at);
   else if (kind === "AU_DIV43") div43(value, at);
   else if (kind === "SG_PLANT") sgPlant(value, at);
+  else if (kind === "SG_RR") sgRenovation(value, at);
   else if (kind === "AU_BORROWING") borrowing(value, at);
-  else bad(`${at}.kind`, "must be AU_DIV40, AU_DIV43, SG_PLANT or AU_BORROWING");
+  else bad(`${at}.kind`, "must be AU_DIV40, AU_DIV43, SG_PLANT, SG_RR or AU_BORROWING");
 };
 
 /** Cross-record checks run after the shapes pass: ids unique, fund ids exist, markets match, properties belong to the same fund. */
@@ -81,7 +91,7 @@ export function assetsRelations(data: AppData, marketFor: (fundId: string, at: s
   data.assets.forEach((r: FixedAsset, i) => {
     const market = marketFor(r.fundId, `assets[${i}].fundId`);
     if ((r.kind === "AU_DIV40" || r.kind === "AU_DIV43" || r.kind === "AU_BORROWING") && market !== "AU") bad(`assets[${i}].kind`, "is only for Australian funds");
-    if (r.kind === "SG_PLANT" && market !== "SG") bad(`assets[${i}].kind`, "is only for Singapore funds");
+    if ((r.kind === "SG_PLANT" || r.kind === "SG_RR") && market !== "SG") bad(`assets[${i}].kind`, "is only for Singapore funds");
     if (r.propertyId !== null) {
       const owner = propertyFund.get(r.propertyId);
       if (!owner) bad(`assets[${i}].propertyId`, "names a property that does not exist");

@@ -158,6 +158,7 @@ export const WORKSPACE_ICON: Record<WorkspaceId, IconName> = {
   "property-taxes": "building",
   assets: "layers",
   compare: "columns",
+  "due-diligence": "clipboard-check",
   "bulk-review": "list-checks",
   analytics: "bar-chart",
   calendar: "calendar",

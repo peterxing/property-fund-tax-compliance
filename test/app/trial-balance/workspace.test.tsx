@@ -74,7 +74,7 @@ describe("the Trial balance workspace", () => {
 
     assert.deepEqual(
       app.allByRole("heading", { level: 3 }).map((h) => flatText(h)),
-      [`Trial balance · ${view.periodLabel}`, "Book to tax", "Tax adjustments", "Distribution components", "Accounts and tax mapping"],
+      [`Trial balance · ${view.periodLabel}`, "Book to tax", "Tax adjustments", "Distribution components", "Expense allocation policy", "Accounts and tax mapping"],
     );
     assert.deepEqual(checks(app), ["Balanced", "1 account needs a tax category", "Matches the distribution"]);
     assert.equal(app.queryByRole("button", IMPORT)?.getAttribute("aria-disabled"), null);
@@ -295,7 +295,7 @@ describe("the CSV export and import", () => {
   it("replaces the accounts with what a clean file says, and announces it with the dialog closed", async () => {
     const app = await mountApp({ hash: COASTLINE, user: "r-okafor" });
     await openImport(app);
-    assert.match(flatText(importDialog(app)), /Choose a CSV file or paste its text to see what would change\./);
+    assert.match(flatText(importDialog(app)), /Choose a CSV or Excel file, or paste CSV text, to see what would change\./);
     assert.equal(isBlocked(replaceButton(app)), true);
 
     await app.type(pasteBox(app), CLEAN_FILE);

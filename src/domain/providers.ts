@@ -6,6 +6,7 @@ import { assetsProviders } from "./assets/providers.ts";
 import { governanceProviders } from "./governance/providers.ts";
 import { gstProviders } from "./gst/providers.ts";
 import { ptaxProviders } from "./ptax/providers.ts";
+import { obligationsProviders } from "./entities/obligations.ts";
 
 /** One line of the Risk register. `workspace` is the app route path where it is resolved ("/gst"); the UI adds ?fund=. */
 export interface RiskItem {
@@ -47,4 +48,4 @@ export interface FeatureProviders {
   compareSources?(data: AppData, fund: Fund, now: Date): CompareSource[];
 }
 
-export const FEATURE_PROVIDERS: readonly FeatureProviders[] = [gstProviders, ptaxProviders, assetsProviders, governanceProviders];
+export const FEATURE_PROVIDERS: readonly FeatureProviders[] = [gstProviders, ptaxProviders, assetsProviders, governanceProviders, obligationsProviders];

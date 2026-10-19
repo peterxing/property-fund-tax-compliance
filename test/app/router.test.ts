@@ -29,6 +29,7 @@ describe("ROUTES", () => {
         "Property taxes",
         "Assets & allowances",
         "Compare",
+        "Due diligence",
         "Bulk review",
         "Analytics",
         "Compliance calendar",
@@ -44,10 +45,10 @@ describe("ROUTES", () => {
     assert.ok(ROUTES.every((r) => r.path.startsWith("/")));
   });
 
-  it("scopes the first nine to a fund and the last eight to the portfolio", () => {
+  it("scopes the first ten to a fund and the last eight to the portfolio", () => {
     assert.deepEqual(
       ROUTES.map((r) => r.scope),
-      ["fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio"],
+      ["fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "fund", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio", "portfolio"],
     );
   });
 

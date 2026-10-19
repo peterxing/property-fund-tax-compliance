@@ -30,7 +30,7 @@ test("each class maps onto an engine investor class and the engine's answer is u
     assert.equal(t.rateBps, engine.withholdingApplies ? engine.withholdingRateBps : 0, cls);
     assert.equal(t.final, engine.withholdingApplies && engine.finalTax && t.rateBps > 0, cls);
     assert.equal(t.remark, engine.remark, cls);
-    assert.equal(t.statusLabel, SG_CLASS_LABEL[cls], cls);
+    assert.equal(t.statusLabel, cls === "nr-fund" ? `${SG_CLASS_LABEL[cls]} · section 13D/13U/13V` : SG_CLASS_LABEL[cls], cls);
     assert.equal(t.group, t.rateBps > 0 ? "net" : "gross", cls);
   }
 });
@@ -57,6 +57,8 @@ test("the 10% concession starts and stops on the engine's dates", () => {
   assert.equal(at("nr-fund", "2019-07-01"), 1000);
   assert.equal(at("nr-fund", "2030-12-31"), 1000);
   assert.equal(at("nr-fund", "2031-01-01"), 1700);
+  assert.equal(holderTreatment("nr-fund", "2024-12-31", "13OA").rateBps, 1700);
+  assert.equal(holderTreatment("nr-fund", "2025-01-01", "13OA").rateBps, 1000);
   // Outside the window the withholding is the prevailing rate and is not final.
   assert.equal(holderTreatment("nrni", "2031-01-01").final, false);
   assert.equal(holderTreatment("nrni", "2031-01-01").rateSummary, "17% · not final");
@@ -66,6 +68,29 @@ test("the 10% concession starts and stops on the engine's dates", () => {
     assert.equal(at("qualifying", date), 0);
     assert.equal(at("other", date), 1700);
   }
+});
+
+test("a 13OA non-resident fund holder gets the prevailing rate before 2025 and the concession from 2025", () => {
+  const before = freshData();
+  const holder = before.holders.find((h) => h.id === "h-ly-4");
+  assert.ok(holder && "sgClass" in holder);
+  holder.sgFundSection = "13OA";
+  const notice = before.sgNotices.find((n) => n.fundId === "loyang");
+  assert.ok(notice);
+  notice.paymentDate = "2024-12-31";
+  const beforeCalc = sgModule.fundCalc(before, before.funds.find((f) => f.id === "loyang")!, NOW);
+  const beforeLine = beforeCalc.holders.find((h) => h.holder.id === "h-ly-4")!;
+  const beforeTaxable = beforeLine.lines.find((l) => l.key === "taxableDistributed")!.amount;
+  assert.equal(beforeLine.rateSummary, "17% · not final");
+  assert.equal(beforeLine.statusLabel, "Qualifying non-resident fund · section 13OA");
+  assert.equal(beforeLine.withheld, withholdingOn(beforeTaxable, 1700));
+
+  notice.paymentDate = "2025-01-01";
+  const afterCalc = sgModule.fundCalc(before, before.funds.find((f) => f.id === "loyang")!, NOW);
+  const afterLine = afterCalc.holders.find((h) => h.holder.id === "h-ly-4")!;
+  const afterTaxable = afterLine.lines.find((l) => l.key === "taxableDistributed")!.amount;
+  assert.equal(afterLine.rateSummary, "10% final");
+  assert.equal(afterLine.withheld, withholdingOn(afterTaxable, 1000));
 });
 
 test("concession windows are probed from the engine", () => {

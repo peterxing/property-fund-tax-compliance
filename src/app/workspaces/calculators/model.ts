@@ -203,8 +203,17 @@ function transferDutyRuleIds(ruleVersion: string | undefined): string[] {
     if (id.startsWith("qld.landholder.")) return "au-transfer-duty.qld.landholder.current";
     if (id.startsWith("wa.transfer.")) return "au-transfer-duty.wa.general.2014-07-02";
     if (id.startsWith("wa.surcharge.")) return "au-transfer-duty.wa.foreign.2019-01-01";
-    if (id.startsWith("sa.transfer.")) return "au-transfer-duty.sa.general.2018-07-01";
+    if (id.startsWith("wa.landholder.")) return "au-transfer-duty.wa.landholder.2008-07-01";
+    if (id.startsWith("sa.transfer.")) return "au-transfer-duty.sa.general.2002-09-05";
+    if (id.startsWith("sa.qualifying-land.phaseout.")) return "au-transfer-duty.sa.qualifying-land.phaseout.2015-12-07";
     if (id.startsWith("sa.qualifying-land.")) return "au-transfer-duty.sa.qualifying-land.2018-07-01";
+    if (id.startsWith("sa.surcharge.")) return "au-transfer-duty.sa.surcharge.2018-01-01";
+    if (id.startsWith("sa.landholder.")) return "au-transfer-duty.sa.landholder.2018-07-01";
+    if (id.startsWith("tas.transfer.")) return "au-transfer-duty.tas.general.2013-10-21";
+    if (id.startsWith("tas.surcharge.")) return "au-transfer-duty.tas.foreign.2020-04-01";
+    if (id.startsWith("act.transfer.residential.")) return "au-transfer-duty.act.residential.2022-07-01";
+    if (id.startsWith("act.transfer.commercial.")) return "au-transfer-duty.act.commercial.2022-07-01";
+    if (id.startsWith("nt.transfer.")) return "au-transfer-duty.nt.general.2022-07-01";
     return id;
   });
 }
@@ -222,6 +231,12 @@ function landTaxRuleIds(ruleVersion: string | undefined): string[] {
     if (id.startsWith("wa.land-tax.mrit.")) return "au-land-tax.wa.mrit.current";
     if (id.startsWith("sa.land-tax.general.")) return "au-land-tax.sa.general";
     if (id.startsWith("sa.land-tax.trust.")) return "au-land-tax.sa.trust";
+    if (id.startsWith("tas.land-tax.general.")) return "au-land-tax.tas.general.2025-07-01";
+    if (id.startsWith("tas.land-tax.foreign.")) return "au-land-tax.tas.foreign.2025-07-01";
+    if (id === "act.land-tax.residential.2025-07-01") return "au-land-tax.act.residential.2025-07-01";
+    if (id.startsWith("act.land-tax.residential.")) return "au-land-tax.act.residential.2026-07-01";
+    if (id.startsWith("act.land-tax.foreign.")) return "au-land-tax.act.foreign.2018-07-01";
+    if (id.startsWith("nt.land-tax.nil.")) return "au-land-tax.nt.nil";
     return id;
   });
 }
@@ -315,7 +330,7 @@ const DEFINITIONS: readonly CalculatorDefinition[] = [
           line("Base duty", money(result.baseDuty, AUD, 0)),
           line("Foreign surcharge duty", money(result.foreignSurchargeDuty, AUD, 0)),
           line("Total duty", money(result.totalDuty, AUD, 0)),
-        ], result.findings, result.notes, result.lines.map((item) => formatLine(item, AUD)), { headlineLabel: "Total landholder duty", headlineValue: money(result.totalDuty, AUD, 0), ruleIds: transferDutyRuleIds(result.ruleVersion) });
+        ], result.findings, result.notes, result.lines.map((item) => formatLine(item, AUD)), { headlineLabel: result.findings.some((finding) => finding.id === "AU_LANDHOLDER.TRUST_ACQUISITION") ? "Total trust acquisition duty" : "Total landholder duty", headlineValue: money(result.totalDuty, AUD, 0), ruleIds: transferDutyRuleIds(result.ruleVersion) });
       }
       const result = computeTransferDuty({
         state: str(values, "state") as AuState,
@@ -342,7 +357,7 @@ const DEFINITIONS: readonly CalculatorDefinition[] = [
     rules: AU_LAND_TAX_RULES,
     fields: [
       landTaxState,
-      { key: "assessmentYear", label: "Assessment year", kind: "number", defaultValue: 2026, min: 2022, step: 1 },
+      { key: "assessmentYear", label: "Assessment year", kind: "number", defaultValue: 2026, min: 2022, step: 1, hint: "Calendar year in NSW and VIC. Elsewhere, the year ending 30 June (2026 means 2025-26)." },
       { key: "landValue", label: "Taxable land value", kind: "money", currency: AUD, defaultValue: 8_000_000_00, min: 0 },
       { key: "ownerKind", label: "Owner kind", kind: "select", defaultValue: "TRUST", options: [{ value: "INDIVIDUAL", label: "Individual" }, { value: "COMPANY", label: "Company" }, { value: "TRUST", label: "Trust" }, { value: "SPECIAL_TRUST", label: "Special trust" }] },
       { key: "trustRates", label: "Trust surcharge or trust rates apply (VIC, SA)", kind: "checkbox", defaultValue: true },

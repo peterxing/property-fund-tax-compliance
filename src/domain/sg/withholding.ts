@@ -5,8 +5,8 @@ import { computeReitTax, determineReitInvestorTax } from "../../engine/reitTax.t
 import type { ReitDeclarationStatus, ReitFundExemptionSection, ReitInvestorClass, ReitInvestorTaxResult } from "../../engine/reitTax.ts";
 import { mulBps } from "../../engine/money.ts";
 import { ratePct } from "../format.ts";
-import type { Cents, ISODate, SgHolderClass } from "../types.ts";
-import { SG_CLASS_LABEL } from "./util.ts";
+import type { Cents, ISODate, SgFundSection, SgHolderClass } from "../types.ts";
+import { SG_CLASS_LABEL, sgFundSectionLabel } from "./util.ts";
 
 interface EngineMapping {
   investorClass: ReitInvestorClass;
@@ -49,8 +49,8 @@ const FINAL_SUFFIX = " (final)";
 /** True for a withholding part label that marks a final tax ("Tax deducted at 10% (final)"). */
 export const isFinalPart = (label: string): boolean => label.endsWith(FINAL_SUFFIX);
 
-export function holderTreatment(sgClass: SgHolderClass, distributionDate: ISODate): HolderTreatment {
-  const e = engineTreatment(sgClass, distributionDate);
+export function holderTreatment(sgClass: SgHolderClass, distributionDate: ISODate, section?: SgFundSection): HolderTreatment {
+  const e = engineTreatment(sgClass, distributionDate, sgClass === "nr-fund" ? section : undefined);
   const rateBps = e.withholdingApplies ? e.withholdingRateBps : 0;
   const rate = rateBps / 10000;
   const final = rateBps > 0 && e.finalTax;
@@ -59,7 +59,7 @@ export function holderTreatment(sgClass: SgHolderClass, distributionDate: ISODat
   else rateSummary = final ? `${ratePct(rate)} final` : `${ratePct(rate)} · not final`;
   return {
     sgClass,
-    statusLabel: SG_CLASS_LABEL[sgClass],
+    statusLabel: sgClass === "nr-fund" ? `${SG_CLASS_LABEL[sgClass]} · ${sgFundSectionLabel(section)}` : SG_CLASS_LABEL[sgClass],
     rateBps,
     rate,
     final,

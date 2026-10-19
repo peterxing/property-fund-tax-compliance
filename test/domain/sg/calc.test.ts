@@ -47,7 +47,7 @@ test("Loyang: components, per-holder cash and withholding match the reference to
       ["Individual", "Exempt · paid gross"],
       ["Qualifying unitholder", "Paid gross · taxed at own rate"],
       ["Qualifying non-resident non-individual", "10% final"],
-      ["Qualifying non-resident fund", "10% final"],
+      ["Qualifying non-resident fund · section 13D/13U/13V", "10% final"],
       ["Qualifying non-resident non-individual", "10% final"],
     ],
   );

@@ -36,6 +36,7 @@ import type {
 import { applyAction, applyBulk } from "./actions.ts";
 import { STATE_VERSION } from "./types.ts";
 import { MAX_SERIALISED, appDataProblem, validatePersisted } from "./core/schema.ts";
+import { normaliseAppData } from "./core/normalise.ts";
 import { visibleFundsOf } from "./core/visible.ts";
 import { defaultUi, seedData } from "./seed/index.ts";
 
@@ -110,7 +111,8 @@ function readPersisted(raw: string): Persisted | null {
     selectedFundId: typeof stored.selectedFundId === "string" ? stored.selectedFundId : null,
   };
   if (!data.users.some((u) => u.id === ui.currentUserId)) ui.currentUserId = fallbackUser;
-  return validatePersisted({ data, ui: reconcile(data, ui) });
+  const valid = validatePersisted({ data, ui: reconcile(data, ui) });
+  return valid ? { data: normaliseAppData(valid.data), ui: valid.ui } : null;
 }
 
 /**
@@ -162,7 +164,9 @@ function sameUi(a: UiState, b: UiState): boolean {
 export function createStore(options: StoreOptions = {}): Store {
   const clock = options.now ?? (() => new Date());
   const storage = options.storage === undefined ? browserStorage() : options.storage;
-  let state: Persisted = options.initial ?? loadPersisted(storage);
+  const initial = options.initial;
+  const initialData = initial ? normaliseAppData(initial.data) : null;
+  let state: Persisted = initial && initialData ? (initialData === initial.data ? initial : { data: initialData, ui: initial.ui }) : loadPersisted(storage);
   const subscribers = new Set<{ listener: () => void }>();
 
   function persist(): void {
@@ -278,7 +282,7 @@ export function createStore(options: StoreOptions = {}): Store {
         if (typeof unwrapped === "string") return unwrapped;
         const problem = appDataProblem(unwrapped);
         if (problem !== null) return `This file is not a backup this version can load: ${problem}.`;
-        const data = structuredClone(unwrapped) as AppData;
+        const data = normaliseAppData(structuredClone(unwrapped) as AppData);
         const keep = data.users.some((u) => u.id === state.ui.currentUserId) ? state.ui.currentUserId : data.users[0]!.id;
         commit({ data, ui: reconcile(data, { currentUserId: keep, jurisdiction: state.ui.jurisdiction, selectedFundId: state.ui.selectedFundId }) });
         return null;

@@ -45,7 +45,7 @@ test("Loyang: the unit cost base moves only by the capital returned", () => {
       ["h-ly-1", "Individual", 1_004_867_500, 162_750_350_000, -150_570_000, 162_599_780_000, 173_138_670_250, 10_538_890_250],
       ["h-ly-2", "Qualifying unitholder", 717_762_500, 100_173_087_800, -107_550_000, 100_065_537_800, 123_670_478_750, 23_604_940_950],
       ["h-ly-3", "Qualifying non-resident non-individual", 574_210_000, 104_872_566_000, -86_040_000, 104_786_526_000, 98_936_383_000, -5_850_143_000],
-      ["h-ly-4", "Qualifying non-resident fund", 430_657_500, 65_298_012_800, -64_530_000, 65_233_482_800, 74_202_287_250, 8_968_804_450],
+      ["h-ly-4", "Qualifying non-resident fund · section 13D/13U/13V", 430_657_500, 65_298_012_800, -64_530_000, 65_233_482_800, 74_202_287_250, 8_968_804_450],
       ["h-ly-5", "Qualifying non-resident non-individual", 143_552_500, 23_992_072_900, -21_510_000, 23_970_562_900, 24_734_095_750, 763_532_850],
     ],
   );
@@ -60,9 +60,21 @@ test("Loyang: the unit cost base moves only by the capital returned", () => {
   const first = view.unitRows[0];
   assert.ok(Math.abs(first.perUnit - 1.618122) < 1e-6, "closing cost base per unit in dollars");
   assert.equal(view.footnote, RETURN_OF_CAPITAL_FOOTNOTE);
+  assert.equal(view.sgValuationNote, undefined);
   assert.equal(
     view.sgNote,
     "Singapore doesn't tax capital gains. A gain on disposal is taxed at the trustee only if it's revenue in nature, and a distribution of a capital gain isn't taxable to unitholders.",
+  );
+});
+
+test("the valuation note appears only when valuations differ from the trial balance by at least S$0.50", () => {
+  const data = freshData();
+  data.properties.find((p) => p.id === "loyang-loyang-logistics-hub")!.valuation += 49;
+  assert.equal(costBaseOf(data, "loyang").sgValuationNote, undefined);
+  data.properties.find((p) => p.id === "loyang-loyang-logistics-hub")!.valuation += 1;
+  assert.equal(
+    costBaseOf(data, "loyang").sgValuationNote,
+    "Valuations total S$7,533,148,056.50; investment properties in the trial balance are S$7,533,148,056.00.",
   );
 });
 
@@ -212,7 +224,9 @@ test("capital returned above a holder's cost leaves a nil cost base and is repor
   const view = costBaseOf(data, "loyang");
   const [over, exact, ...rest] = view.unitRows;
   assert.deepEqual([over.opening, over.adjustment, over.closing, over.perUnit, over.unrealised], [100_000, -150_570_000, 0, 0, over.marketValue]);
+  assert.equal(over.excessOverCostBase, 150_470_000);
   assert.deepEqual([exact.opening, exact.adjustment, exact.closing, exact.perUnit], [107_550_000, -107_550_000, 0, 0]);
+  assert.equal(exact.excessOverCostBase, 0);
   assert.ok(!Object.is(exact.closing, -0));
   assert.ok(rest.every((r) => r.closing === r.opening + r.adjustment), "other holders move by the capital returned only");
   assert.equal(view.unitTotals.adjustment, -430_200_000, "the adjustment column still shows all the capital returned");

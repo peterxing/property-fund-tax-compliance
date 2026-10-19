@@ -10,7 +10,8 @@ import type { Fund, Property } from "../../../domain/types.ts";
 import { dateLabel, money, toISODate } from "../../../domain/format.ts";
 import { downloadCsv, downloadPdf } from "../../exports/index.ts";
 import { useRouteParam, useSetRouteParams } from "../../router.ts";
-import { useAppData, useCtx, useDispatch, useWorkflow } from "../../state.tsx";
+import { useAppData, useCtx, useDispatch } from "../../state.tsx";
+import { can, userHasFund } from "../../../domain/permissions.ts";
 import { Badge, Button, Dialog, DownloadButton, Field, Kpi, KpiStrip, MoneyInput, NumberInput, Panel, Select, TableScroll, Tabs, TextInput } from "../../ui/index.ts";
 import { bpsPct, deadlineText, profileSummary, ptaxTabFromParam, PTAX_TABS, rowAmountText, statusText, statusTone, valueText, yesNo } from "./model.ts";
 import "./property-taxes.css";
@@ -59,16 +60,54 @@ function PaymentDialog({ fund, propertyId, propertyName, kind, period, amount, o
   );
 }
 
+function NoticeDialog({ fund, row, open, onClose }: { fund: Fund; row: AnnualTaxRow; open: boolean; onClose(): void }) {
+  const dispatch = useDispatch();
+  const today = toISODate(useCtx().now);
+  const defaultDueDate = row.notice?.dueDate ?? row.dueDate ?? today;
+  const defaultIssueDate = row.notice?.issueDate ?? (defaultDueDate < today ? defaultDueDate : today);
+  const [assessedAmount, setAssessedAmount] = useState<number | null>(row.assessedAmount ?? row.total);
+  const [issueDate, setIssueDate] = useState(defaultIssueDate);
+  const [dueDate, setDueDate] = useState(defaultDueDate);
+  const [reference, setReference] = useState(row.notice?.reference ?? "");
+  const submit = (): void => {
+    if (assessedAmount === null) return;
+    const result = dispatch({ type: "ptax-record-notice", fundId: fund.id, propertyId: row.propertyId, period: row.period, assessedAmount, issueDate, dueDate, reference });
+    if (result.ok) onClose();
+  };
+  const remove = (): void => {
+    if (!row.notice) return;
+    const result = dispatch({ type: "ptax-remove-notice", fundId: fund.id, propertyId: row.propertyId, noticeId: row.notice.id });
+    if (result.ok) onClose();
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={`Assessment notice — ${row.propertyName}`}
+      description="Record the revenue office notice so the due date, assessed amount, calendar and risk register use the assessment instead of the estimate."
+      footer={<><Button onClick={onClose}>Cancel</Button>{row.notice ? <Button onClick={remove}>Remove notice</Button> : null}<Button variant="primary" onClick={submit}>{row.notice ? "Update notice" : "Record notice"}</Button></>}
+    >
+      <div className="ptax-form">
+        <Field label="Assessed amount"><MoneyInput value={assessedAmount} currency={fund.currency} onCommit={setAssessedAmount} min={0} /></Field>
+        <Field label="Issue date"><TextInput type="date" value={issueDate} onValueChange={setIssueDate} /></Field>
+        <Field label="Due date"><TextInput type="date" value={dueDate} onValueChange={setDueDate} /></Field>
+        <Field label="Reference" required><TextInput value={reference} onValueChange={setReference} /></Field>
+      </div>
+    </Dialog>
+  );
+}
+
 function annualPaymentPeriod(fund: Fund, row: AnnualTaxRow): string {
-  const year = row.dueDate?.slice(0, 4) ?? fund.periodEnd.slice(0, 4);
-  return fund.market === "AU" ? `land-tax-${year}` : `property-tax-${year}`;
+  return row.period;
 }
 
 function AnnualPanel({ fund, canRecord }: { fund: Fund; canRecord: boolean }) {
   const data = useAppData();
   const ctx = useCtx();
   const [payment, setPayment] = useState<AnnualTaxRow | null>(null);
+  const [notice, setNotice] = useState<AnnualTaxRow | null>(null);
   const view = useMemo(() => propertyTaxView(data, fund.id, ctx), [data, fund.id, ctx]);
+  const varianceChecks = view.rows.filter((row) => row.status === "modelled" && row.assessedVariance !== null && Math.abs(row.assessedVariance) > 100);
   return (
     <Panel
       title={view.title}
@@ -90,6 +129,7 @@ function AnnualPanel({ fund, canRecord }: { fund: Fund; canRecord: boolean }) {
               <th scope="col" className="num">Tax</th>
               <th scope="col" className="num">{surchargeColumnLabel(fund.market)}</th>
               <th scope="col" className="num">Total</th>
+              <th scope="col">Assessment notice</th>
               <th scope="col">Due</th>
               <th scope="col">Status</th>
               {canRecord ? <th scope="col">Actions</th> : null}
@@ -105,9 +145,15 @@ function AnnualPanel({ fund, canRecord }: { fund: Fund; canRecord: boolean }) {
                 <td className="num">{rowAmountText(row.status, row.tax, fund.currency)}</td>
                 <td className="num">{rowAmountText(row.status, row.surcharge, fund.currency)}</td>
                 <td className="num">{rowAmountText(row.status, row.total, fund.currency)}</td>
-                <td>{row.dueLabel}</td>
+                <td>{row.assessedLabel}</td>
+                <td>{row.dueLabel}{row.dueEstimated ? <small>Record the notice to replace this estimate.</small> : null}</td>
                 <td><Badge tone={row.paid ? "good" : statusTone(row.status)}>{row.paid ? "Paid" : statusText(row.status)}</Badge></td>
-                {canRecord ? <td>{row.status === "modelled" && !row.paid ? <Button size="sm" onClick={() => setPayment(row)}>Record payment</Button> : null}</td> : null}
+                {canRecord ? (
+                  <td>
+                    {row.status === "modelled" ? <Button size="sm" onClick={() => setNotice(row)}>{row.notice ? "Update notice" : "Record notice"}</Button> : null}
+                    {row.status === "modelled" && !row.paid ? <Button size="sm" onClick={() => setPayment(row)}>Record payment</Button> : null}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -117,12 +163,21 @@ function AnnualPanel({ fund, canRecord }: { fund: Fund; canRecord: boolean }) {
               <td className="num">{money(view.totals.tax, fund.currency)}</td>
               <td className="num">{money(view.totals.surcharge, fund.currency)}</td>
               <td className="num">{money(view.totals.total, fund.currency)}</td>
-              <td colSpan={canRecord ? 3 : 2}></td>
+              <td colSpan={canRecord ? 4 : 3}></td>
             </tr>
           </tfoot>
         </table>
       </TableScroll>
-      {payment ? <PaymentDialog fund={fund} propertyId={payment.propertyId} propertyName={payment.propertyName} kind="annual-tax" period={annualPaymentPeriod(fund, payment)} amount={payment.total} open={true} onClose={() => setPayment(null)} /> : null}
+      {varianceChecks.length > 0 ? (
+        <div className="ptax-checks" aria-label="Assessment variance checks">
+          <strong>Assessment checks</strong>
+          <ul>
+            {varianceChecks.map((row) => <li key={row.propertyId}>{row.propertyName}: assessed differs from modelled by {money(Math.abs(row.assessedVariance ?? 0), fund.currency)}.</li>)}
+          </ul>
+        </div>
+      ) : null}
+      {notice ? <NoticeDialog fund={fund} row={notice} open={true} onClose={() => setNotice(null)} /> : null}
+      {payment ? <PaymentDialog fund={fund} propertyId={payment.propertyId} propertyName={payment.propertyName} kind="annual-tax" period={annualPaymentPeriod(fund, payment)} amount={payment.assessedAmount ?? payment.total} open={true} onClose={() => setPayment(null)} /> : null}
     </Panel>
   );
 }
@@ -237,6 +292,11 @@ function ProfileDialog({ fund, property, open, onClose }: { fund: Fund; property
             <Field label="Trust surcharge applies"><Select value={String(profile.auTrustSurchargeApplies)} options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} onValueChange={(value) => save(patchOf("auTrustSurchargeApplies", value === "true"))} /></Field>
             <Field label="Residential land"><Select value={String(profile.auResidential)} options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} onValueChange={(value) => save(patchOf("auResidential", value === "true"))} /></Field>
             <Field label="Residential share (bps)"><NumberInput value={profile.auResidentialShareBps} onCommit={(value) => save(patchOf("auResidentialShareBps", value === null ? null : Math.round(value)))} allowEmpty integer min={0} max={10000} /></Field>
+            {profile.auState === "WA" ? (
+              <Field label="Perth metropolitan region" hint="Western Australian MRIT applies only to land in the Perth metropolitan region. Older saves default to Yes.">
+                <Select value={String(profile.auMetropolitanRegion ?? true)} options={[{ value: "true", label: "Yes — include MRIT" }, { value: "false", label: "No — outside the region" }]} onValueChange={(value) => save(patchOf("auMetropolitanRegion", value === "true"))} />
+              </Field>
+            ) : null}
             <Field label="Purchase price"><MoneyInput value={profile.purchasePrice} currency={fund.currency} onCommit={(value) => value !== null && save(patchOf("purchasePrice", value))} min={0} /></Field>
             <Field label="Purchase date"><TextInput type="date" value={profile.purchaseDate} onValueChange={(value) => save(patchOf("purchaseDate", value))} /></Field>
             <Field label="Transfer duty property kind"><Select value={profile.auPropertyKind ?? ""} options={options(AU_TRANSFER_DUTY_PROPERTY_KINDS)} onValueChange={(value) => save(patchOf("auPropertyKind", value as PtaxProfilePatch["auPropertyKind"]))} /></Field>
@@ -318,13 +378,15 @@ function ProfilesPanel({ fund, canEdit, lockNote }: { fund: Fund; canEdit: boole
 export function PropertyTaxesBody({ fund }: { fund: Fund }) {
   const data = useAppData();
   const ctx = useCtx();
-  const workflow = useWorkflow(fund.id);
   const tab = ptaxTabFromParam(useRouteParam("tab"));
   const setParams = useSetRouteParams();
   const kpis = useMemo(() => propertyTaxKpis(data, fund.id, ctx), [data, fund.id, ctx]);
-  const canEdit = workflow.can.edit;
-  const canRecord = workflow.can.edit || workflow.can.lodge;
-  const lockNote = canEdit ? null : workflow.lockedReason || VIEW_ONLY;
+  // Property-tax records sit outside the distribution sign-off, so (like GST and obligations) they are gated on role and fund
+  // access only. This mirrors the ptax reducers exactly: profiles need "edit"; notices and payments need "edit" or "lodge".
+  const hasFund = userHasFund(ctx.user, fund.id);
+  const canEdit = hasFund && can(ctx.user, "edit", fund, fund.governance);
+  const canRecord = canEdit || (hasFund && can(ctx.user, "lodge", fund, fund.governance));
+  const lockNote = canEdit ? null : VIEW_ONLY;
   const tabs = PTAX_TABS.map((item) => ({ id: item.id, label: item.label }));
 
   return (
@@ -335,7 +397,7 @@ export function PropertyTaxesBody({ fund }: { fund: Fund }) {
         <Kpi label="Not calculated" value={String(kpis.needsData)} tone={kpis.needsData > 0 ? "warn" : "good"} sub="Taxes or duties with missing data or no modelled rates" />
       </KpiStrip>
       <Panel title="Property taxes and duties">
-        <p className="ptax-note">Property details can be updated in any workflow status by anyone who can edit this fund.</p>
+        <p className="ptax-note">Property-tax records sit outside the distribution sign-off: preparers and the head of tax can update profiles in any workflow status, notices and payments can also be recorded by whoever lodges for this fund, and every change is audited.</p>
         <Tabs tabs={tabs} value={tab} onValueChange={(next) => setParams({ tab: next })} label="Property taxes">
           <Tabs.Panel id="annual"><AnnualPanel fund={fund} canRecord={canRecord} /></Tabs.Panel>
           <Tabs.Panel id="duties"><DutiesPanel fund={fund} canRecord={canRecord} /></Tabs.Panel>

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useState, type ChangeEvent } from "react";
 import { AU_GST_CODES } from "../../../engine/au/gstCodes.ts";
 import { GST_CODES } from "../../../engine/gstCodes.ts";
 import { ROLE_LABEL, can, lodgmentRole, userHasFund } from "../../../domain/permissions.ts";
@@ -9,7 +9,8 @@ import { useAppData, useCtx, useDispatch } from "../../state.tsx";
 import { useRouteParam, useSetRouteParams } from "../../router.ts";
 import { LODGMENT_GOVERNANCE } from "../investor-reporting/model.ts";
 import { downloadCsv } from "../../exports/index.ts";
-import { Badge, Banner, Button, Dialog, EmptyState, Field, Kpi, KpiStrip, Panel, Select, TableScroll, TextArea, TextInput, useNotify } from "../../ui/index.ts";
+import { readImportFile } from "../../imports/index.ts";
+import { Badge, Banner, Button, Dialog, EmptyState, Field, Kpi, KpiStrip, Panel, Select, TableScroll, TextArea, TextInput, buttonClass, useNotify } from "../../ui/index.ts";
 import "./gst.css";
 
 const EMPTY_ENTRY: Omit<GstEntryDraft, "fundId"> = { date: "", description: "", counterparty: "", code: "", net: 0, tax: 0, invoiceRef: "" };
@@ -105,9 +106,22 @@ function EntryDialog({ fund, entry, open, onClose }: { fund: Fund; entry: GstEnt
 
 function ImportDialog({ fund, lockedPeriods, open, onClose }: { fund: Fund; lockedPeriods: readonly string[]; open: boolean; onClose(): void }) {
   const [text, setText] = useState("date,invoice,description,counterparty,code,net,tax\n");
+  const [fileMessage, setFileMessage] = useState("");
+  const fileId = useId();
   const dispatch = useDispatch();
   const notify = useNotify();
   const plan = useMemo(() => parseImport(text, fund.id), [text, fund.id]);
+  const onFile = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    readImportFile(file).then(
+      (result) => {
+        setText(result.text);
+        setFileMessage(result.note ?? "");
+      },
+      (error) => setFileMessage(error instanceof Error ? error.message : "The file could not be read. Choose it again."),
+    );
+  };
   const run = () => {
     if (plan.error) return;
     const result = dispatch({ type: "gst-import-entries", fundId: fund.id, entries: plan.rows });
@@ -117,8 +131,13 @@ function ImportDialog({ fund, lockedPeriods, open, onClose }: { fund: Fund; lock
     }
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Import GST ledger" description="CSV columns: date, invoice, description, counterparty, code, net, tax." size="lg" footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={Boolean(plan.error)} onClick={run}>Replace GST ledger</Button></>}>
-      <label>CSV text<TextArea rows={10} value={text} onValueChange={setText} /></label>
+    <Dialog open={open} onClose={onClose} title="Import GST ledger" description="CSV or Excel columns: date, invoice, description, counterparty, code, net, tax." size="lg" footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={Boolean(plan.error)} onClick={run}>Replace GST ledger</Button></>}>
+      <div className="button-row">
+        <label className={buttonClass({ variant: "secondary" })} htmlFor={fileId}>Choose CSV or Excel file</label>
+        <input id={fileId} type="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={onFile} />
+      </div>
+      {fileMessage ? <Banner tone={fileMessage.startsWith("Read ") ? "info" : "error"}>{fileMessage}</Banner> : null}
+      <label>CSV text<TextArea rows={10} value={text} onValueChange={(value) => { setFileMessage(""); setText(value); }} /></label>
       {lockedPeriods.length ? <Banner tone="info">Locked periods are kept and cannot be imported into: {lockedPeriods.join(", ")}.</Banner> : null}
       {plan.error ? <Banner tone="error">{plan.error}</Banner> : <p>{plan.rows.length} rows ready to import. The import replaces entries only in open, unlodged periods; lodged periods are kept.</p>}
     </Dialog>
@@ -232,7 +251,7 @@ export function GstBody({ fund }: { fund: Fund }) {
         </TableScroll>
       </Panel>
 
-      <Panel title="GST ledger" actions={<><Button size="sm" onClick={() => downloadCsv(view.ledgerCsv)}>Download ledger CSV</Button><Button size="sm" disabled={!canEdit} aria-describedby={!canEdit ? lockId : undefined} onClick={() => setImportOpen(true)}>Import CSV</Button><Button size="sm" variant="primary" disabled={!canEdit} aria-describedby={!canEdit ? lockId : undefined} onClick={() => setAddOpen(true)}>Add entry</Button></>}>
+      <Panel title="GST ledger" actions={<><Button size="sm" onClick={() => downloadCsv(view.ledgerCsv)}>Download ledger CSV</Button><Button size="sm" disabled={!canEdit} aria-describedby={!canEdit ? lockId : undefined} onClick={() => setImportOpen(true)}>Import CSV or Excel</Button><Button size="sm" variant="primary" disabled={!canEdit} aria-describedby={!canEdit ? lockId : undefined} onClick={() => setAddOpen(true)}>Add entry</Button></>}>
         <div className="gst-toolbar">
           <Select aria-label="Ledger period scope" value={ledgerScope} options={[{ value: "period", label: "Selected period" }, { value: "all", label: "All periods" }]} onValueChange={(scope) => setLedgerScope(scope === "all" ? "all" : "period")} />
           <TextInput className="gst-toolbar__filter" aria-label="Filter GST ledger" placeholder="Filter by code, label, text or invoice" value={filter} onValueChange={setFilter} />

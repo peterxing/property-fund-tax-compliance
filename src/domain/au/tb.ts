@@ -1,5 +1,5 @@
 // Trial balance view: what the accounts say the distribution components are, the book-to-tax reconciliation and the account list.
-import type { AppData, AuFund, AuInputs, BookToTaxRow, Cents, Fund, TbCategoryDef, TbRow, TbRowView, TbView } from "../types.ts";
+import type { AppData, AuExpenseAllocation, AuFund, AuInputs, BookToTaxRow, Cents, Fund, TbCategoryDef, TbRow, TbRowView, TbView } from "../types.ts";
 import { UNMAPPED_CATEGORY } from "../types.ts";
 import { inputLabel } from "../core/labels.ts";
 import { trustNetGain } from "./rates.ts";
@@ -47,11 +47,11 @@ export interface TbDerivation {
   total: Cents;
   accountingProfit: Cents;
   unmapped: TbRow[];
-  /** Deductions above the rental income they are set against, which cannot be attributed to members. */
-  netRentalLoss: Cents;
+  /** Deductions above all the assessable income they can be set against: the trust's tax loss, carried forward and not attributed to members. */
+  taxLoss: Cents;
   adjustments: Record<string, Cents>;
   manualAdjustments: Array<{ label: string; component: DerivedKey; amount: Cents; reason: string }>;
-  prior: Pick<TbDerivation, "sums" | "accountingProfit" | "inputs" | "adjustments" | "netRentalLoss" | "manualAdjustments">;
+  prior: Pick<TbDerivation, "sums" | "accountingProfit" | "inputs" | "adjustments" | "taxLoss" | "manualAdjustments">;
 }
 
 /** pool * part / whole in whole dollars (half away from zero), computed exactly. */
@@ -59,6 +59,48 @@ function poolShare(pool: Cents, part: Cents, whole: Cents): Cents {
   if (whole <= 0 || part <= 0 || pool === 0) return 0;
   const dollars = divRound(BigInt(Math.abs(pool)) * BigInt(part), BigInt(whole) * 100n);
   return nz(pool < 0 ? -dollars * 100 : dollars * 100);
+}
+
+const defaultAllocation = (allocation: AuFund["expenseAllocation"]): AuExpenseAllocation => allocation ?? { method: "pro-rata" };
+
+/**
+ * Sets `excess` against the amounts in `available` in proportion to their size, never taking more than an amount holds.
+ * Returns what each amount gives up and whatever the amounts cannot absorb.
+ */
+function absorb<K extends string>(excess: Cents, available: Record<K, Cents>): { taken: Record<K, Cents>; left: Cents } {
+  const keys = Object.keys(available) as K[];
+  const taken = Object.fromEntries(keys.map((key) => [key, 0])) as Record<K, Cents>;
+  const whole = keys.reduce((sum, key) => sum + available[key], 0);
+  if (excess <= 0) return { taken, left: 0 };
+  if (excess >= whole) {
+    for (const key of keys) taken[key] = available[key];
+    return { taken, left: excess - whole };
+  }
+  for (const key of keys) taken[key] = Math.min(available[key], poolShare(excess, available[key], whole));
+  // Whole-dollar rounding can leave the shares a few dollars off; settle the difference on the largest amounts first.
+  let difference = excess - keys.reduce((sum, key) => sum + taken[key], 0);
+  for (const key of keys.slice().sort((a, b) => available[b] - available[a])) {
+    if (difference === 0) break;
+    const next = Math.min(available[key], Math.max(0, taken[key] + difference));
+    difference -= next - taken[key];
+    taken[key] = next;
+  }
+  return { taken, left: 0 };
+}
+
+function allocationShares(pool: Cents, allocation: AuExpenseAllocation, gross: { other: Cents; ncmi: Cents; transitional: Cents; clean: Cents }): Record<"other" | "ncmi" | "transitional" | "clean", Cents> {
+  if (allocation.method === "other-income") return { other: pool, ncmi: 0, transitional: 0, clean: 0 };
+  if (allocation.method === "custom") {
+    const ncmi = poolShare(pool, allocation.sharesBps.ncmi, 10_000);
+    const transitional = poolShare(pool, allocation.sharesBps.transitional, 10_000);
+    const clean = poolShare(pool, allocation.sharesBps.clean, 10_000);
+    return { other: pool - ncmi - transitional - clean, ncmi, transitional, clean };
+  }
+  const whole = gross.other + gross.ncmi + gross.transitional + gross.clean;
+  const ncmi = poolShare(pool, gross.ncmi, whole);
+  const clean = poolShare(pool, gross.clean, whole);
+  const transitional = poolShare(pool, gross.transitional, whole);
+  return { other: pool - ncmi - transitional - clean, ncmi, transitional, clean };
 }
 
 function deriveFor(data: AppData, fund: AuFund, field: "current" | "prior", includeCurrentOnlyAdjustments: boolean) {
@@ -74,36 +116,52 @@ function deriveFor(data: AppData, fund: AuFund, field: "current" | "prior", incl
         .map((a) => ({ label: a.label, component: a.component as DerivedKey, amount: a.amount, reason: a.reason }))
     : [];
 
-  const rent = -n("rent");
-  const ncmiRent = -n("ncmi-rent");
-  const transitional = -n("ncmi-transitional");
-  const clean = -n("clean-building");
+  const gross = {
+    other: -n("rent"),
+    ncmi: -n("ncmi-rent"),
+    transitional: -n("ncmi-transitional"),
+    clean: -n("clean-building"),
+  };
 
-  // Deductions (expenses, Div 40 and Div 43) are set against each income stream in proportion to the rent it earned.
+  // Deductions (expenses, Div 40 and Div 43) are set against the rental streams under the fund's allocation policy.
   const pool = n("deductible-expense") + adj("div40") + adj("div43");
-  const whole = rent + ncmiRent + transitional + clean;
-  const ncmiShare = poolShare(pool, ncmiRent, whole);
-  const cleanShare = poolShare(pool, clean, whole);
-  const transitionalShare = poolShare(pool, transitional, whole);
-  const otherShare = pool - ncmiShare - transitionalShare - cleanShare;
+  const shares = allocationShares(pool, defaultAllocation(fund.expenseAllocation), gross);
   const net = {
-    other: rent - otherShare,
-    ncmi: ncmiRent - ncmiShare,
-    transitional: transitional - transitionalShare,
-    clean: clean - cleanShare,
+    other: gross.other - shares.other,
+    ncmi: gross.ncmi - shares.ncmi,
+    transitional: gross.transitional - shares.transitional,
+    clean: gross.clean - shares.clean,
   };
 
   const floor0 = (cents: Cents): Cents => Math.max(0, roundToDollarCents(cents));
+  // No trust component goes below nil. Deductions above a stream's income are set against the other assessable income on a
+  // reasonable basis (ATO, "Calculating AMIT income – trust components"): first the remaining rent, interest and foreign income,
+  // then the TARP capital gains, each pro rata. Anything left is the trust's tax loss.
+  const rentalExcess = Object.values(net).reduce((sum, value) => sum + Math.max(0, -value), 0);
+  const ordinary = {
+    other: Math.max(0, net.other),
+    ncmi: Math.max(0, net.ncmi),
+    transitional: Math.max(0, net.transitional),
+    clean: Math.max(0, net.clean),
+    interest: Math.max(0, -n("interest-income")),
+    foreign: Math.max(0, -n("foreign-income")),
+  };
+  const gains = {
+    discount: Math.max(0, trustNetGain(fund.periodEnd, adj("tarpDiscountGross"))),
+    other: Math.max(0, adj("tarpOther")),
+  };
+  const fromOrdinary = absorb(rentalExcess, ordinary);
+  const fromGains = absorb(fromOrdinary.left, gains);
   const inputs: AuInputs = {
     cashDistribution: fund.inputs.cashDistribution,
-    ausOtherIncome: floor0(net.other),
-    ncmi: floor0(net.ncmi),
-    excludedNcmi: floor0(net.transitional),
-    cleanBuilding: floor0(net.clean),
-    interest: floor0(-n("interest-income")),
-    discountGainTarp: floor0(trustNetGain(fund.periodEnd, adj("tarpDiscountGross"))),
-    otherGainTarp: floor0(adj("tarpOther")),
-    foreignIncome: floor0(-n("foreign-income")),
+    ausOtherIncome: floor0(ordinary.other - fromOrdinary.taken.other),
+    ncmi: floor0(ordinary.ncmi - fromOrdinary.taken.ncmi),
+    excludedNcmi: floor0(ordinary.transitional - fromOrdinary.taken.transitional),
+    cleanBuilding: floor0(ordinary.clean - fromOrdinary.taken.clean),
+    interest: floor0(ordinary.interest - fromOrdinary.taken.interest),
+    discountGainTarp: floor0(gains.discount - fromGains.taken.discount),
+    otherGainTarp: floor0(gains.other - fromGains.taken.other),
+    foreignIncome: floor0(ordinary.foreign - fromOrdinary.taken.foreign),
   };
   for (const adjustment of manualAdjustments) {
     inputs[adjustment.component] = Math.max(0, inputs[adjustment.component] + adjustment.amount);
@@ -115,7 +173,7 @@ function deriveFor(data: AppData, fund: AuFund, field: "current" | "prior", incl
     total: rows.reduce((sum, r) => sum + r.current, 0),
     accountingProfit: nz(-PROFIT_CATEGORIES.reduce((sum, c) => sum + n(c), 0)),
     unmapped: rows.filter((r) => r.category === UNMAPPED_CATEGORY),
-    netRentalLoss: Math.max(0, -(net.other + net.ncmi + net.transitional + net.clean)),
+    taxLoss: fromGains.left,
     adjustments,
     manualAdjustments,
   };
@@ -222,7 +280,7 @@ export function tbView(data: AppData, fundIn: Fund, _now: Date): TbView {
       resultPrior,
       resultChange,
       resultChangePct: resultPrior === 0 ? null : (resultChange / Math.abs(resultPrior)) * 100,
-      ...(d.netRentalLoss > 0 ? { extra: { label: "Deductions above rental income (not attributed to members)", amount: d.netRentalLoss } } : {}),
+      ...(d.taxLoss > 0 ? { extra: { label: "Tax loss carried forward by the trust (not attributed to members)", amount: d.taxLoss } } : {}),
     },
     adjustments: data.adjustmentDefs.AU.map((def) => ({ ...def, amount: d.adjustments[def.key] ?? 0 })),
     components,

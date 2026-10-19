@@ -42,6 +42,17 @@ export const ptaxProviders: FeatureProviders = {
           detail: row.status === "modelled" ? `${row.dueLabel}; no payment recorded.` : row.basis,
           workspace: TAX_WORKSPACE,
         })),
+      ...annual.rows
+        .filter((row) => row.status === "modelled" && row.assessedVariance !== null && Math.abs(row.assessedVariance) > 100)
+        .map((row) => ({
+          id: `ptax-notice-variance-${row.propertyId}`,
+          fundId: fund.id,
+          severity: "note" as const,
+          area: fund.market === "AU" ? "Land tax" : "Property tax",
+          title: `${row.propertyName}: assessed differs from modelled`,
+          detail: row.assessedLabel,
+          workspace: TAX_WORKSPACE,
+        })),
       ...duties.rows
         .filter((row) => row.status !== "modelled")
         .map((row) => ({ id: `ptax-duty-${row.propertyId}`, fundId: fund.id, severity: row.status === "missing-data" ? "exception" as const : "note" as const, area: "Duties", title: `${row.propertyName}: duty not calculated`, detail: row.basis, workspace: TAX_WORKSPACE })),
@@ -57,7 +68,14 @@ export const ptaxProviders: FeatureProviders = {
         label: fund.market === "AU" ? "Land tax by property" : "Property tax by property",
         description: "Annual property tax amounts from the property tax workspace.",
         tolerance: 100,
-        lines: annual.rows.filter((row) => row.status === "modelled").map((row) => ({ ref: `ptax.annual.${row.propertyId}`, label: row.propertyName, amount: row.total, section: annual.title, note: row.basisTitle })),
+        lines: annual.rows.filter((row) => row.status === "modelled").map((row) => ({ ref: `ptax.annual.${row.propertyId}`, label: row.propertyName, amount: row.total, section: annual.title, note: row.assessedAmount === null ? row.basisTitle : `${row.basisTitle}; ${row.assessedLabel}` })),
+      },
+      {
+        id: "ptax-annual-assessed",
+        label: fund.market === "AU" ? "Assessed land tax notices" : "Assessed property tax notices",
+        description: "Assessment notice amounts recorded against annual property tax periods.",
+        tolerance: 100,
+        lines: annual.rows.filter((row) => row.status === "modelled" && row.assessedAmount !== null).map((row) => ({ ref: `ptax.assessed.${row.propertyId}`, label: row.propertyName, amount: row.assessedAmount ?? 0, section: annual.title, note: row.notice ? `${row.notice.reference}; due ${row.dueLabel}` : row.assessedLabel })),
       },
       {
         id: "ptax-duties",

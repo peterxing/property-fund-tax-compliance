@@ -121,6 +121,7 @@ export interface UnitRowModel {
   perUnit: string;
   marketValue: string;
   unrealised: GainCell;
+  excessOverCostBase?: string;
 }
 
 export interface UnitTotalModel {
@@ -151,6 +152,7 @@ export function unitTable(view: Pick<CostBaseView, "market" | "unitRows" | "unit
       perUnit: perUnit(r.perUnit, 4),
       marketValue: money(r.marketValue, currency),
       unrealised: gainCell(r.unrealised, currency),
+      ...(r.excessOverCostBase && r.excessOverCostBase >= 1 ? { excessOverCostBase: money(r.excessOverCostBase, currency) } : {}),
     })),
     total: {
       units: integer(view.unitTotals.units),

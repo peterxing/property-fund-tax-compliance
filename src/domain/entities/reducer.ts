@@ -8,6 +8,9 @@ import { nextSequenceId } from "../core/ids.ts";
 import { MAX_ARRAY, MAX_FUND_ID, MAX_NAME, isAmount, isISODate, isSafeInt } from "../core/validate.ts";
 import { can, userHasFund } from "../permissions.ts";
 import { integer, money } from "../format.ts";
+import { importFunds } from "./fundsImport.ts";
+import { setExpenseAllocation } from "./expenseAllocation.ts";
+import { applyObligationAction } from "./obligations.ts";
 
 const fail = (reason: string): ActionResult => ({ ok: false, reason });
 const succeed = (data: AppData): ActionResult => ({ ok: true, data });
@@ -37,10 +40,11 @@ function editableFund(data: AppData, fundId: FundId, user: User): Fund | string 
   return fund;
 }
 
-const clean = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+export const cleanEntityText = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+const clean = cleanEntityText;
 const clipped = (value: string, max = MAX_NAME): string | null => (value.length > max ? `Text can have up to ${max} characters` : null);
 
-function slugFor(name: string, existing: readonly string[]): string {
+export function slugFor(name: string, existing: readonly string[]): string {
   const base = name
     .toLowerCase()
     .replace(/&/g, " and ")
@@ -64,12 +68,12 @@ function shortDate(iso: string): string {
   return `${date.toLocaleString("en-AU", { day: "numeric", timeZone: "UTC" })} ${date.toLocaleString("en-AU", { month: "short", timeZone: "UTC" })}`;
 }
 
-function periodLabel(market: Fund["market"], start: string, end: string): string {
+export function periodLabel(market: Fund["market"], start: string, end: string): string {
   const year = end.slice(0, 4);
   return market === "AU" ? `Income year ended ${shortDate(end)} ${year}` : `Distribution period ${shortDate(start)} – ${shortDate(end)} ${year}`;
 }
 
-function validateCommonFund(draft: EntityFundDraft): string | null {
+export function validateCommonFund(draft: EntityFundDraft): string | null {
   const name = clean(draft.name);
   const sector = clean(draft.sector);
   if (draft.market !== "AU" && draft.market !== "SG") return "Market must be Australia or Singapore";
@@ -97,7 +101,7 @@ function periodChangeBlocked(data: AppData, fund: Fund): boolean {
   );
 }
 
-function zeroAdjustments(data: AppData, market: Fund["market"]) {
+export function zeroAdjustments(data: AppData, market: Fund["market"]) {
   return Object.fromEntries(data.adjustmentDefs[market].map((def) => [def.key, 0]));
 }
 
@@ -251,6 +255,7 @@ function deleteFund(data: AppData, action: Extract<EntityAction, { type: "entity
     assets: data.assets.filter((r) => r.fundId !== fund.id),
     versions: data.versions.filter((r) => r.fundId !== fund.id),
     manualAdjustments: data.manualAdjustments.filter((r) => r.fundId !== fund.id),
+    obligations: data.obligations.filter((r) => r.fundId !== fund.id),
     unitCostBase: omitKey(data.unitCostBase, fund.id),
     taxAdjustments: omitKey(data.taxAdjustments, fund.id),
     sgLedger: omitKey(data.sgLedger, fund.id),
@@ -279,7 +284,9 @@ function validateHolder(fund: Fund, row: EntityHolderDraft, line = "Unitholder")
     return { id: "", fundId: fund.id, holder, country, units: row.units, auStatus: row.auStatus } satisfies AuHolder;
   }
   if (row.sgClass !== "individual" && row.sgClass !== "qualifying" && row.sgClass !== "nrni" && row.sgClass !== "nr-fund" && row.sgClass !== "other") return `${line}: SG holder class is required`;
-  return { id: "", fundId: fund.id, holder, country, units: row.units, sgClass: row.sgClass } satisfies SgHolder;
+  if (row.sgFundSection !== undefined && row.sgFundSection !== "13D" && row.sgFundSection !== "13U" && row.sgFundSection !== "13V" && row.sgFundSection !== "13OA") return `${line}: SG fund section must be 13D, 13U, 13V or 13OA`;
+  if (row.sgFundSection !== undefined && row.sgClass !== "nr-fund") return `${line}: SG fund section is only for a non-resident fund`;
+  return { id: "", fundId: fund.id, holder, country, units: row.units, sgClass: row.sgClass, ...(row.sgClass === "nr-fund" && row.sgFundSection ? { sgFundSection: row.sgFundSection } : {}) } satisfies SgHolder;
 }
 
 function holderId(fundId: string, holder: string, existing: readonly string[]): string {
@@ -473,5 +480,14 @@ export function applyEntityAction(data: AppData, action: EntityAction, ctx: Ctx)
       return removeProperty(data, action, ctx);
     case "entity-import-properties":
       return importProperties(data, action, ctx);
+    case "entity-import-funds":
+      return importFunds(data, action, ctx);
+    case "entity-set-expense-allocation":
+      return setExpenseAllocation(data, action, ctx);
+    case "entity-add-obligation":
+    case "entity-update-obligation":
+    case "entity-delete-obligation":
+    case "entity-set-obligation-done":
+      return applyObligationAction(data, action, ctx);
   }
 }

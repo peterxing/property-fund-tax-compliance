@@ -51,7 +51,10 @@ export function bpsPct(value: number | null): string {
 }
 
 export function profileSummary(profile: PropertyTaxProfile, currency: Currency): string {
-  if (profile.auState) return `${profile.auState} · land value ${valueText(profile.auLandValue, currency)} · ${profile.auOwnerKind ?? "owner not set"}`;
+  if (profile.auState) {
+    const mrit = profile.auState === "WA" ? ` · ${profile.auMetropolitanRegion === false ? "outside Perth metro" : "Perth metro"}` : "";
+    return `${profile.auState} · land value ${valueText(profile.auLandValue, currency)} · ${profile.auOwnerKind ?? "owner not set"}${mrit}`;
+  }
   return `${profile.sgUsage ?? "usage not set"} · annual value ${valueText(profile.sgAnnualValue, currency)}`;
 }
 

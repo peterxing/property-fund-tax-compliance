@@ -4,7 +4,7 @@ import { centsPerUnit, moneyCompact } from "../format.ts";
 import { reitFormUtDueDate } from "../../engine/reitTax.ts";
 import { buildSankey } from "../shared/sankey.ts";
 import { sgChecks } from "./checks.ts";
-import { allocateAcrossRegister, paymentDateOf, requireSgFund, sgHolders, sgNoticeFor, sumOf } from "./util.ts";
+import { allocateAcrossRegister, paymentDateOf, requireSgFund, sgHolders, sgHolderStatusLabel, sgNoticeFor, sumOf } from "./util.ts";
 import type { RegisterShares } from "./util.ts";
 import { componentTreatmentText, holderTreatment, trusteePosition, withholdingOn } from "./withholding.ts";
 
@@ -60,7 +60,7 @@ export function buildHolderLines(fund: SgFund, holders: readonly SgHolder[], not
   const registerUnits = sumOf(holders.map((h) => h.units));
   const denominator = Math.max(fund.unitsOnIssue, registerUnits);
   return holders.map((holder, i) => {
-    const t = holderTreatment(holder.sgClass, date);
+    const t = holderTreatment(holder.sgClass, date, holder.sgFundSection);
     const taxable = shares.taxableDistributed.holders[i];
     const withheld = withholdingOn(taxable, t.rateBps);
     const lines: HolderLineDetail[] = SG_COMPONENTS.map((def) => {
@@ -75,7 +75,7 @@ export function buildHolderLines(fund: SgFund, holders: readonly SgHolder[], not
       withheld,
       net: cash - withheld,
       group: t.group,
-      statusLabel: t.statusLabel,
+      statusLabel: sgHolderStatusLabel(holder),
       rateSummary: t.rateSummary,
       withholdingParts: withheld > 0 && t.partLabel ? [{ label: t.partLabel, amount: withheld }] : [],
       lines,

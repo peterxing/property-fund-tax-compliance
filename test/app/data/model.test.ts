@@ -10,7 +10,9 @@ import {
   backupFileName,
   backupText,
   dataFromBackup,
+  fundsTemplate,
   holdersTemplate,
+  parseFundsCsv,
   parseHoldersCsv,
   parseBackupText,
   parsePropertiesCsv,
@@ -18,12 +20,34 @@ import {
   restoreSummary,
 } from "../../../src/app/workspaces/data/model.ts";
 
+test("fund CSV parser previews AU and SG funds with readable per-row errors", () => {
+  const preview = parseFundsCsv("market,name,sector,listed,periodStart,periodEnd,unitsOnIssue,governance,assessmentYear\nAU,Bulk AU,Office,no,2025-07-01,2026-06-30,1000,no-agent,\nSG,Bulk SG,Logistics,yes,2026-07-01,2026-09-30,2000,agent-signs-off,2027");
+  assert.equal(preview.errors.length, 0);
+  assert.deepEqual(preview.validRows.map((row) => [row.market, row.name, row.listed, row.assessmentYear ?? ""]), [
+    ["AU", "Bulk AU", false, ""],
+    ["SG", "Bulk SG", true, 2027],
+  ]);
+  const bad = parseFundsCsv("market,name,sector,listed,periodStart,periodEnd,unitsOnIssue,governance,assessmentYear\nSG,,Office,maybe,2026-10-01,2026-09-30,0,bad,");
+  assert.deepEqual(bad.rows[0]!.errors, [
+    "Line 2: name is required.",
+    "Line 2: listed must be yes or no.",
+    "Line 2: periodEnd must be on or after periodStart.",
+    "Line 2: unitsOnIssue must be a whole number of at least 1.",
+    "Line 2: governance must be agent-lodges, agent-signs-off or no-agent.",
+    "Line 2: assessmentYear is required for SG funds.",
+  ]);
+  assert.match(fundsTemplate(), /assessmentYear/);
+});
+
 test("holder CSV parser reads AU and SG rows and reports readable problems", () => {
   assert.deepEqual(parseHoldersCsv("holder,country,units,auStatus\nA Holder,Australia,100,resident", "AU"), [
     { holder: "A Holder", country: "Australia", units: 100, auStatus: "resident" },
   ]);
   assert.deepEqual(parseHoldersCsv("holder,country,units,sgClass\nS Holder,Singapore,200,qualifying", "SG"), [
     { holder: "S Holder", country: "Singapore", units: 200, sgClass: "qualifying" },
+  ]);
+  assert.deepEqual(parseHoldersCsv("holder,country,units,sgClass,sgFundSection\nFund Holder,Cayman Islands,300,nr-fund,13OA", "SG"), [
+    { holder: "Fund Holder", country: "Cayman Islands", units: 300, sgClass: "nr-fund", sgFundSection: "13OA" },
   ]);
   assert.equal(parseHoldersCsv("holder,country,units,auStatus\nBad,Australia,x,resident", "AU"), "Line 2: units must be a whole number of zero or more.");
   assert.match(holdersTemplate("AU"), /auStatus/);
@@ -36,6 +60,8 @@ test("holder CSV parser handles BOM, quotes, duplicates, unknown classes and wro
   assert.equal(parseHoldersCsv("holder,country,units,auStatus\nA,Australia,1,resident\nA,Australia,2,resident", "AU"), "Line 3: holder A appears more than once.");
   assert.equal(parseHoldersCsv("holder,country,units,auStatus\nA,Australia,1,unknown", "AU"), "Line 2: auStatus must be resident, foreign-eoi or foreign-non-eoi.");
   assert.equal(parseHoldersCsv("holder,country,units,auStatus\nA,Australia,1,resident", "SG"), "Line 2: sgClass must be individual, qualifying, nrni, nr-fund or other.");
+  assert.equal(parseHoldersCsv("holder,country,units,sgClass,sgFundSection\nA,Singapore,1,qualifying,13OA", "SG"), "Line 2: sgFundSection is only for nr-fund holders.");
+  assert.equal(parseHoldersCsv("holder,country,units,sgClass,sgFundSection\nA,Singapore,1,nr-fund,13X", "SG"), "Line 2: sgFundSection must be 13D, 13U, 13V or 13OA.");
   const many = ["holder,country,units,sgClass", ...Array.from({ length: 2001 }, (_, i) => `H${i},Singapore,1,qualifying`)].join("\n");
   assert.equal(parseHoldersCsv(many, "SG"), "The CSV can have up to 2,000 rows.");
 });
@@ -44,7 +70,9 @@ test("property CSV parser reads cents from decimal amounts", () => {
   assert.deepEqual(parsePropertiesCsv("name,location,acquired,cost,improvements,capitalWorksClaimed,valuation\nTower,Sydney,2024-01-01,10.25,2,1,20"), [
     { name: "Tower", location: "Sydney", acquired: "2024-01-01", cost: 1025, improvements: 200, capitalWorksClaimed: 100, valuation: 2000 },
   ]);
-  assert.equal(parsePropertiesCsv("name,location,acquired,cost,valuation\nTower,Sydney,not-a-date,1,2"), "Line 2: name, location and acquired (YYYY-MM-DD) are required.");
+  assert.equal(parsePropertiesCsv("name,location,acquired,cost,valuation\nTower,Sydney,not-a-date,1,2"), "Line 2: acquired must be a valid YYYY-MM-DD date.");
+  assert.equal(parsePropertiesCsv("name,location,acquired,cost,valuation\nTower,Sydney,2025-02-29,1,2"), "Line 2: acquired must be a valid YYYY-MM-DD date.");
+  assert.equal(parsePropertiesCsv("name,location,acquired,cost,valuation\nTower,,2024-01-01,1,2"), "Line 2: name, location and acquired (YYYY-MM-DD) are required.");
   assert.match(propertiesTemplate(), /capitalWorksClaimed/);
 });
 

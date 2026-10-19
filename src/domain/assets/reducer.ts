@@ -1,7 +1,7 @@
 // OWNER: Assets & allowances agent (F3). Pure reducers for asset actions.
 import { AU_CAPITAL_WORKS_BUILDING_TYPES, type AuCapitalWorksBuildingType } from "../../engine/au/capitalWorks.ts";
-import { AU_DEPRECIABLE_ASSET_CLASSES } from "../../engine/au/depreciation.ts";
-import { CAPITAL_ALLOWANCE_REGIMES, CAPITAL_ASSET_CLASSES, type CapitalAllowanceRegime } from "../../engine/capitalAllowances.ts";
+import { AU_DEPRECIABLE_ASSET_CLASSES, computeDepreciation } from "../../engine/au/depreciation.ts";
+import { CAPITAL_ALLOWANCE_REGIMES, CAPITAL_ASSET_CLASSES, type CapitalAllowanceRegime, type RrClaimMode } from "../../engine/capitalAllowances.ts";
 import type { Action, ActionResult, AppData, Ctx, Fund } from "../types.ts";
 import { can } from "../permissions.ts";
 import { appendAudit } from "../core/audit.ts";
@@ -32,6 +32,7 @@ const AU_ASSET_CLASSES = new Set(AU_DEPRECIABLE_ASSET_CLASSES.map((row) => row.i
 const DIV43_BUILDING_TYPES = new Set(AU_CAPITAL_WORKS_BUILDING_TYPES.map((row) => row.id));
 const SG_ASSET_CLASSES = new Set(CAPITAL_ASSET_CLASSES.map((row) => row.id));
 const SG_REGIMES = new Set(CAPITAL_ALLOWANCE_REGIMES.map((row) => row.id).filter((id) => !String(id).startsWith("S14N_")));
+const RR_CLAIM_MODES = new Set(["THREE_YEAR", "ONE_YEAR"]);
 
 function fail(reason: string): { ok: false; reason: string } {
   return { ok: false, reason };
@@ -128,7 +129,19 @@ function cleanAsset(data: AppData, fund: Fund, id: string, draft: FixedAssetDraf
     if (!life.ok) return life;
     const taxableUseBps = optionalBps((draft as { taxableUseBps?: unknown }).taxableUseBps);
     if (!taxableUseBps.ok) return taxableUseBps;
-    asset = { ...base.value, kind: "AU_DIV40", assetClassId: assetClass.value, method: method.value, ...(life.value !== undefined ? { effectiveLifeYears: life.value } : {}), ...(taxableUseBps.value !== undefined ? { taxableUseBps: taxableUseBps.value } : {}) };
+    const poolMethodValue = (draft as { poolMethod?: unknown }).poolMethod;
+    if (poolMethodValue !== undefined && poolMethodValue !== "LOW_VALUE_POOL") return fail("Pool method is not recognised.");
+    if (poolMethodValue === "LOW_VALUE_POOL") {
+      const testAsset = { id, label: base.value.description, assetClassId: assetClass.value, cost: base.value.cost, startDate: base.value.startDate, method: method.value, ...(life.value !== undefined ? { effectiveLifeYears: life.value } : {}), ...(taxableUseBps.value !== undefined ? { taxableUseBps: taxableUseBps.value } : {}) };
+      let opening = base.value.cost;
+      try {
+        opening = computeDepreciation({ incomeYear: Number(fund.periodEnd.slice(0, 4)), asset: testAsset }).line.openingAdjustableValue;
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : "Low-value pool eligibility could not be checked.");
+      }
+      if (base.value.cost >= 100_000 && opening >= 100_000) return fail("Low-value pool assets must be low-cost assets under A$1,000, or low-value assets with opening adjustable value under A$1,000 for this income year.");
+    }
+    asset = { ...base.value, kind: "AU_DIV40", assetClassId: assetClass.value, method: method.value, ...(life.value !== undefined ? { effectiveLifeYears: life.value } : {}), ...(taxableUseBps.value !== undefined ? { taxableUseBps: taxableUseBps.value } : {}), ...(poolMethodValue === "LOW_VALUE_POOL" ? { poolMethod: "LOW_VALUE_POOL" } : {}) };
   } else if (draft.kind === "AU_DIV43" && fund.market === "AU") {
     const buildingType = enumField<AuCapitalWorksBuildingType>((draft as { buildingType?: unknown }).buildingType, DIV43_BUILDING_TYPES, "Building type");
     if (!buildingType.ok) return buildingType;
@@ -168,8 +181,17 @@ function cleanAsset(data: AppData, fund: Fund, id: string, draft: FixedAssetDraf
     const claimInitialAllowanceValue = (draft as { claimInitialAllowance?: unknown }).claimInitialAllowance;
     if (claimInitialAllowanceValue !== undefined && typeof claimInitialAllowanceValue !== "boolean") return fail("Claim initial allowance must be true or false.");
     asset = { ...base.value, kind: "SG_PLANT", assetClassId: assetClass.value, regime: regime.value, ...(claimStartYaValue !== undefined ? { claimStartYa: claimStartYaValue } : {}), ...(prescribedLifeValue !== undefined ? { prescribedWorkingLifeYears: prescribedLifeValue } : {}), ...(electedLifeValue !== undefined ? { electedWorkingLifeYears: electedLifeValue } : {}), ...(claimInitialAllowanceValue !== undefined ? { claimInitialAllowance: claimInitialAllowanceValue } : {}) };
+  } else if (draft.kind === "SG_RR" && fund.market === "SG") {
+    const claimModeValue = (draft as { claimMode?: unknown }).claimMode;
+    if (claimModeValue !== undefined) {
+      const mode = enumField<RrClaimMode>(claimModeValue, RR_CLAIM_MODES, "Section 14N claim mode");
+      if (!mode.ok) return mode;
+      asset = { ...base.value, kind: "SG_RR", claimMode: mode.value };
+    } else {
+      asset = { ...base.value, kind: "SG_RR" };
+    }
   } else {
-    return fail(fund.market === "AU" ? "Australian funds can only hold Division 40, Division 43 or borrowing-cost records." : "Singapore funds can only hold capital allowance records.");
+    return fail(fund.market === "AU" ? "Australian funds can only hold Division 40, Division 43 or borrowing-cost records." : "Singapore funds can only hold capital allowance or section 14N R&R records.");
   }
   try {
     fixedAsset(asset, "asset");

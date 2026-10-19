@@ -1,10 +1,10 @@
 // OWNER: Assets & allowances agent (F3). Record, action and view-model types for this feature.
 import type { AuCapitalWorksBuildingType } from "../../engine/au/capitalWorks.ts";
 import type { AuDepreciationMethod } from "../../engine/au/depreciation.ts";
-import type { CapitalAllowanceRegime } from "../../engine/capitalAllowances.ts";
+import type { CapitalAllowanceRegime, RrClaimMode } from "../../engine/capitalAllowances.ts";
 import type { Cents, CsvModel, DocModel, FundId, ISODate, Market } from "../types.ts";
 
-export type AssetKind = "AU_DIV40" | "AU_DIV43" | "SG_PLANT" | "AU_BORROWING";
+export type AssetKind = "AU_DIV40" | "AU_DIV43" | "SG_PLANT" | "SG_RR" | "AU_BORROWING";
 
 export interface FixedAssetBase {
   id: string;
@@ -24,6 +24,7 @@ export interface AuDiv40Asset extends FixedAssetBase {
   method: AuDepreciationMethod;
   effectiveLifeYears?: number;
   taxableUseBps?: number;
+  poolMethod?: "LOW_VALUE_POOL";
 }
 
 export interface AuDiv43Asset extends FixedAssetBase {
@@ -47,13 +48,18 @@ export interface SgPlantAsset extends FixedAssetBase {
   claimInitialAllowance?: boolean;
 }
 
+export interface SgRenovationAsset extends FixedAssetBase {
+  kind: "SG_RR";
+  claimMode?: RrClaimMode;
+}
+
 export interface AuBorrowingCostAsset extends FixedAssetBase {
   kind: "AU_BORROWING";
   loanEndDate: ISODate;
   taxableUseBps?: number;
 }
 
-export type FixedAsset = AuDiv40Asset | AuDiv43Asset | SgPlantAsset | AuBorrowingCostAsset;
+export type FixedAsset = AuDiv40Asset | AuDiv43Asset | SgPlantAsset | SgRenovationAsset | AuBorrowingCostAsset;
 export type FixedAssetDraft = FixedAsset extends infer T ? (T extends FixedAsset ? Omit<T, "id" | "fundId"> : never) : never;
 
 export type AssetAction =
@@ -76,11 +82,15 @@ export interface AssetRegisterRow {
   startDate: ISODate;
   basis: string;
   openingWrittenDownValue: Cents;
+  baseDeduction: Cents;
+  balancingAdjustmentIncome: Cents;
+  balancingAdjustmentDeduction: Cents;
   deduction: Cents;
   closingWrittenDownValue: Cents;
   disposalDate: ISODate | null;
   disposalProceeds: Cents | null;
   note: string | null;
+  source: "asset" | "pool";
 }
 
 export interface AssetKindTotal {
@@ -104,6 +114,9 @@ export interface AssetScheduleLine {
   year: string;
   kind: AssetKind;
   label: string;
+  baseDeduction: Cents;
+  balancingAdjustmentIncome: Cents;
+  balancingAdjustmentDeduction: Cents;
   deduction: Cents;
 }
 

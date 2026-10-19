@@ -1,0 +1,12 @@
+.dd .kpi__value {
+  max-width: 22rem;
+}
+
+.dd-evidence {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.dd-evidence li + li {
+  margin-top: .35rem;
+}

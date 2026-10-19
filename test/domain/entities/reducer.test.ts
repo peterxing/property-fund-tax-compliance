@@ -167,6 +167,8 @@ test("entity actions return validation messages without changing frozen input", 
   const data = frozenSeed();
   assert.equal(denied(data, "a-moreno", { type: "entity-update-fund", fundId: "telok-ayer", patch: { unitsOnIssue: 0 } }), "Units on issue must be a whole number of at least 1");
   assert.equal(denied(data, "w-l-teo", { type: "entity-add-holder", fundId: "telok-ayer", holder: { ...holderDraft, holder: "" } }), "Unitholder: holder name is required");
+  assert.equal(denied(data, "w-l-teo", { type: "entity-add-holder", fundId: "telok-ayer", holder: { ...holderDraft, sgClass: "qualifying", sgFundSection: "13OA" } }), "Unitholder: SG fund section is only for a non-resident fund");
+  assert.equal(denied(data, "w-l-teo", { type: "entity-add-holder", fundId: "telok-ayer", holder: { ...holderDraft, sgClass: "nr-fund", sgFundSection: "13X" as never } }), "Unitholder: SG fund section must be 13D, 13U, 13V or 13OA");
   assert.equal(denied(data, "w-l-teo", { type: "entity-import-holders", fundId: "telok-ayer", mode: "append", rows: [] }), "The import has no unitholders");
   assert.equal(denied(data, "w-l-teo", { type: "entity-add-property", fundId: "telok-ayer", property: { ...propertyDraft, acquired: "bad-date" } }), "Property: acquired date must be a real date");
   assert.equal(denied(data, "w-l-teo", { type: "entity-import-properties", fundId: "telok-ayer", mode: "append", rows: [] }), "The import has no properties");
@@ -185,6 +187,23 @@ test("holders and properties require Preparing, keep cost-base openings in step,
   assert.equal(data.properties.some((p) => p.id === property.id), false);
   assert.match(data.audit.at(-1)?.action ?? "", /Property removed/);
   assert.equal(denied(frozenSeed(), "a-moreno", { type: "entity-add-holder", fundId: "meranti", holder: { holder: "x", country: "SG", units: 1, sgClass: "qualifying" } }), "This fund is in review. Return it to the preparer to edit.");
+  noProblem(data);
+});
+
+test("holder entity actions persist SG fund exemption sections for non-resident funds", () => {
+  let data = frozenSeed();
+  data = ok(data, "w-l-teo", { type: "entity-add-holder", fundId: "telok-ayer", holder: { holder: "13OA Fund", country: "Cayman Islands", units: 10, sgClass: "nr-fund", sgFundSection: "13OA" } });
+  const holder = data.holders.find((h) => h.holder === "13OA Fund");
+  assert.ok(holder && "sgClass" in holder);
+  assert.equal(holder.sgFundSection, "13OA");
+  data = ok(data, "w-l-teo", { type: "entity-update-holder", fundId: "telok-ayer", holderId: holder.id, patch: { sgFundSection: "13U" } });
+  const updated = data.holders.find((h) => h.id === holder.id);
+  assert.ok(updated && "sgClass" in updated);
+  assert.equal(updated.sgFundSection, "13U");
+  data = ok(data, "w-l-teo", { type: "entity-import-holders", fundId: "telok-ayer", mode: "replace", rows: [{ holder: "Imported 13OA Fund", country: "Cayman Islands", units: 99, sgClass: "nr-fund", sgFundSection: "13OA" }] });
+  const imported = data.holders.find((h) => h.holder === "Imported 13OA Fund");
+  assert.ok(imported && "sgClass" in imported);
+  assert.equal(imported.sgFundSection, "13OA");
   noProblem(data);
 });
 

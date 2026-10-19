@@ -46,6 +46,7 @@ const TEMPLATE: AppData = {
   assets: [...SEED_ASSETS],
   versions: [],
   manualAdjustments: [...SEED_MANUAL_ADJUSTMENTS],
+  obligations: [],
 };
 TEMPLATE.versions = buildSeedVersions(TEMPLATE);
 deepFreeze(TEMPLATE);

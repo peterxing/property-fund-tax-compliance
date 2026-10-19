@@ -2,7 +2,7 @@
 import type { Fund, Property } from "../types.ts";
 import { FUNDS } from "../seed/funds.ts";
 import { PROPERTIES } from "../seed/properties.ts";
-import type { PropertyTaxProfile, PtaxPayment } from "./types.ts";
+import type { PropertyTaxProfile, PtaxNotice, PtaxPayment } from "./types.ts";
 import type { AuState } from "../../engine/au/types.ts";
 
 const fundMarket = new Map(FUNDS.map((fund) => [fund.id, fund]));
@@ -35,6 +35,7 @@ function annualValue(property: Property): number {
 
 export function defaultPropertyTaxProfile(property: Property, fund: Fund = fundMarket.get(property.fundId)!): PropertyTaxProfile {
   const payments = seedPayments(property, fund);
+  const notices = seedNotices(property, fund);
   if (fund.market === "AU") {
     const state = auState(property.location);
     const residential = /Hospital|Medical|Surgery/.test(property.name);
@@ -51,6 +52,7 @@ export function defaultPropertyTaxProfile(property: Property, fund: Fund = fundM
       auTrustSurchargeApplies: !(state === "SA" && fund.listed),
       auResidential: residential,
       auResidentialShareBps: residential ? 10_000 : null,
+      ...(state === "WA" ? { auMetropolitanRegion: true } : {}),
       sgAnnualValue: null,
       sgUsage: null,
       sgOwnerOccupied: false,
@@ -66,6 +68,7 @@ export function defaultPropertyTaxProfile(property: Property, fund: Fund = fundM
       disposalDate: null,
       disposalPrice: null,
       payments,
+      ...(notices.length > 0 ? { notices } : {}),
     };
   }
   return {
@@ -95,6 +98,7 @@ export function defaultPropertyTaxProfile(property: Property, fund: Fund = fundM
     disposalDate: null,
     disposalPrice: null,
     payments,
+    ...(notices.length > 0 ? { notices } : {}),
   };
 }
 
@@ -121,6 +125,24 @@ function seedPayments(property: Property, fund: Fund): PtaxPayment[] {
     reference: fund.market === "AU" ? `Duty ${property.id.slice(0, 12)}` : `Stamp ${property.id.slice(0, 12)}`,
   });
   return payments;
+}
+
+function seedNotices(property: Property, fund: Fund): PtaxNotice[] {
+  const period = fund.market === "AU" ? `land-tax-${fund.periodEnd.slice(0, 4)}` : "property-tax-2026";
+  const notice = (assessedAmount: number, issueDate: string, dueDate: string, reference: string): PtaxNotice => ({
+    id: `ptn-${property.id}-annual`,
+    period,
+    assessedAmount,
+    issueDate,
+    dueDate,
+    reference,
+  });
+  if (property.id === "wattle-wattle-grove-shopping-centre") return [notice(886_126_601, "2026-08-15", "2026-09-16", "NSW LT WAT-2026-0916")];
+  if (property.id === "wattle-banksia-plaza") return [notice(737_821_991, "2026-08-28", "2026-09-30", "WA LT BAN-2026-0930")];
+  if (property.id === "kurrajong-fremantle-wharf-offices") return [notice(323_230_666, "2026-08-28", "2026-09-30", "WA LT FRE-2026-0930")];
+  if (property.id === "telok-ayer-cecil-exchange") return [notice(848_757_282, "2026-01-01", "2026-01-31", "IRAS PT CE-2026")];
+  if (property.id === "telok-ayer-telok-ayer-tower") return [notice(1_375_572_147, "2026-01-01", "2026-01-31", "IRAS PT TA-2026")];
+  return [];
 }
 
 export const SEED_PROPERTY_PROFILES: readonly PropertyTaxProfile[] = PROPERTIES.map((property) => defaultPropertyTaxProfile(property));

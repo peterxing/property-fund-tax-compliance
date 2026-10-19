@@ -129,7 +129,21 @@ export interface AuFund extends FundBase {
   regime: "AMIT";
   currency: "AUD";
   inputs: AuInputs;
+  /** How deductions are set against the income streams when the trial balance derives the components. Absent = "pro-rata". */
+  expenseAllocation?: AuExpenseAllocation;
 }
+
+/**
+ * The AU expense allocation policy (src/domain/au/tb.ts). Deductions (deductible expenses, Div 40 and Div 43) are set against the four
+ * rental income streams: "Australian income — other", NCMI, excluded-from-NCMI (transitional) and clean building MIT income.
+ *  - pro-rata: in proportion to the gross rent of each stream (the default, and the reference app's behaviour);
+ *  - other-income: all against "Australian income — other";
+ *  - custom: fixed shares in basis points that total 10,000.
+ */
+export type AuExpenseAllocation =
+  | { method: "pro-rata" }
+  | { method: "other-income" }
+  | { method: "custom"; sharesBps: { other: number; ncmi: number; transitional: number; clean: number } };
 export interface SgFund extends FundBase {
   market: "SG";
   regime: "S-REIT";
@@ -141,6 +155,8 @@ export type Fund = AuFund | SgFund;
 
 export type AuHolderStatus = "resident" | "foreign-eoi" | "foreign-non-eoi";
 export type SgHolderClass = "individual" | "qualifying" | "nrni" | "nr-fund" | "other";
+/** The ITA section a qualifying non-resident fund's exemption rests on (engine `ReitFundExemptionSection`; 13OA funds qualify from 2025). */
+export type SgFundSection = "13D" | "13U" | "13V" | "13OA";
 
 interface HolderBase {
   id: string;
@@ -154,6 +170,8 @@ export interface AuHolder extends HolderBase {
 }
 export interface SgHolder extends HolderBase {
   sgClass: SgHolderClass;
+  /** Only for sgClass "nr-fund": the exemption section; absent = treated as 13D/13U/13V (concession from 1 July 2019). */
+  sgFundSection?: SgFundSection;
 }
 export type Holder = AuHolder | SgHolder;
 
@@ -272,6 +290,28 @@ export interface AppData {
   /** Saved calculation versions and manual tax adjustments with reasons (src/domain/governance). */
   versions: CalcVersion[];
   manualAdjustments: ManualAdjustment[];
+  /**
+   * Obligations a user adds to the compliance calendar (council rates, insurance, payroll ...). Optional in the saved-state schema so that
+   * data saved before it existed still loads; `normaliseAppData` (core/normalise.ts) fills it with [] on every way in.
+   */
+  obligations: CustomObligation[];
+}
+
+export type ObligationCategory = "council-rates" | "insurance" | "payroll" | "fbt" | "other";
+export type ObligationRecurrence = "none" | "monthly" | "quarterly" | "annually";
+
+/** A user-defined obligation on the compliance calendar. Occurrences repeat from `firstDue` by `recurrence`; `done` lists completed due dates. */
+export interface CustomObligation {
+  id: string;
+  fundId: FundId;
+  title: string;
+  category: ObligationCategory;
+  firstDue: ISODate;
+  recurrence: ObligationRecurrence;
+  notes: string;
+  done: ISODate[];
+  createdBy: string;
+  createdAt: string;
 }
 
 export type JurisdictionFilter = "all" | Market;
@@ -633,6 +673,8 @@ export interface UnitCostBaseRow {
   perUnit: number;
   marketValue: Cents;
   unrealised: Cents;
+  /** SG only: return of capital above this holder's opening cost base. */
+  excessOverCostBase?: Cents;
 }
 export interface CostBaseView {
   market: Market;
@@ -644,6 +686,8 @@ export interface CostBaseView {
   deferredTax?: { investors: Array<{ id: DeferredTaxInvestor; label: string; amount: Cents }>; selected: DeferredTaxInvestor; note: string };
   /** SG only */
   sgNote?: string;
+  /** SG only: shown when property valuations and the investment-properties trial-balance row differ by S$0.50 or more. */
+  sgValuationNote?: string;
   unitPriceLabel: string; // "A$0.720 · market price"
   adjustmentLabel: string; // "AMIT cost base net amount" | "Return of capital reduces the cost of units"
   unitRows: UnitCostBaseRow[];

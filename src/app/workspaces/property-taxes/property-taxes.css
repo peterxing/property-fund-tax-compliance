@@ -11,6 +11,7 @@
 
 .ptax .dt th span,
 .ptax .dt th small,
+.ptax .dt td small,
 .ptax-basis,
 .ptax-basis small {
   display: block;
@@ -20,4 +21,21 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   gap: 1rem;
+}
+
+.ptax td > .button + .button {
+  margin-inline-start: .35rem;
+}
+
+.ptax-checks {
+  margin-top: 1rem;
+  padding: .75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+
+.ptax-checks ul {
+  margin: .5rem 0 0;
+  padding-inline-start: 1.25rem;
 }

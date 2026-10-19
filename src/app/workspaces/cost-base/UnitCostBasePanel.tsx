@@ -13,6 +13,7 @@ export interface UnitCostBasePanelProps {
 /** What each holder's units cost, how this period's distributions moved that cost, and what the units are worth. */
 export function UnitCostBasePanel({ fund, view }: UnitCostBasePanelProps) {
   const table = unitTable(view);
+  const showExcess = view.market === "SG";
   return (
     <Panel title="Unit cost base" padded={false} actions={<DownloadButton size="sm" label="Download CSV" onDownload={() => downloadCsv(view.unitsCsv)} />}>
       <dl className="cb-facts">
@@ -41,6 +42,11 @@ export function UnitCostBasePanel({ fund, view }: UnitCostBasePanelProps) {
               <th scope="col" className="num">
                 Closing cost base
               </th>
+              {showExcess ? (
+                <th scope="col" className="num">
+                  Excess over cost base
+                </th>
+              ) : null}
               <th scope="col" className="num">
                 Per unit
               </th>
@@ -65,6 +71,7 @@ export function UnitCostBasePanel({ fund, view }: UnitCostBasePanelProps) {
                 <td className="num">{row.opening}</td>
                 <td className="num">{row.adjustment}</td>
                 <td className="num">{row.closing}</td>
+                {showExcess ? <td className="num">{row.excessOverCostBase ?? "–"}</td> : null}
                 <td className="num">{row.perUnit}</td>
                 <td className="num">{row.marketValue}</td>
                 <td className="num">
@@ -80,6 +87,7 @@ export function UnitCostBasePanel({ fund, view }: UnitCostBasePanelProps) {
               <td className="num">{table.total.opening}</td>
               <td className="num">{table.total.adjustment}</td>
               <td className="num">{table.total.closing}</td>
+              {showExcess ? <td /> : null}
               <td />
               <td className="num">{table.total.marketValue}</td>
               <td className="num">

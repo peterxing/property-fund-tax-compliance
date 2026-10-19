@@ -218,15 +218,19 @@ test("deductions are shared across the income streams in proportion to the rent 
   assert.ok(Math.abs(inputs.ausOtherIncome - (rent - (pool - share))) <= 100, "other income takes the rest");
 });
 
-test("deductions above the rent are reported, not attributed", () => {
+test("deductions above all the income are a tax loss of the trust, not attributed", () => {
   const data = freshData();
   const rows = data.tbRows.filter((r) => r.fundId === "wattle" && r.category === "deductible-expense");
   assert.ok(rows.length > 0);
-  rows[0].current += 900_000_000_00; // far more expense than rent
+  rows[0].current += 900_000_000_00; // far more expense than all the income
   const tb = view(data, "wattle");
-  assert.equal(derived(tb).ausOtherIncome, 0, "attributed income never goes below zero");
+  const inputs = derived(tb);
+  assert.equal(inputs.ausOtherIncome, 0, "attributed income never goes below zero");
+  for (const key of ["ncmi", "excludedNcmi", "cleanBuilding", "interest", "discountGainTarp", "otherGainTarp", "foreignIncome"] as const) {
+    assert.equal(inputs[key], 0, `${key}: excess deductions absorb every other component first`);
+  }
   assert.ok(tb.bookToTax.extra);
-  assert.equal(tb.bookToTax.extra.label, "Deductions above rental income (not attributed to members)");
+  assert.equal(tb.bookToTax.extra.label, "Tax loss carried forward by the trust (not attributed to members)");
   assert.ok(tb.bookToTax.extra.amount > 0);
 });
 

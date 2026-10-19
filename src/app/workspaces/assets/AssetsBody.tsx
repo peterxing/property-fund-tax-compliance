@@ -4,6 +4,7 @@ import type { Fund } from "../../../domain/types.ts";
 import { dateLabel, money } from "../../../domain/format.ts";
 import { DocView } from "../../doc/DocView.tsx";
 import { downloadCsv, downloadPdf } from "../../exports/index.ts";
+import { readImportFile } from "../../imports/index.ts";
 import { useRouteParam, useSetRouteParams } from "../../router.ts";
 import { useAppData, useCtx, useDispatch, useWorkflow } from "../../state.tsx";
 import { Banner, Button, Dialog, DownloadButton, Field, Kpi, KpiStrip, MoneyInput, Panel, Select, TableScroll, Tabs, Tag, TextArea, TextInput } from "../../ui/index.ts";
@@ -27,11 +28,18 @@ function displayBasis(row: AssetRegisterRow): string {
   if (row.kind === "AU_DIV40") return "ITAA 1997 s40-25";
   if (row.kind === "AU_DIV43") return "ITAA 1997 s43-10";
   if (row.kind === "AU_BORROWING") return "ITAA 1997 s25-25";
+  if (row.kind === "SG_RR") return "Income Tax Act s14N";
   return row.basis.replace(/^Income Tax Act · /, "Income Tax Act ");
 }
 
 function currencyFor(row: AssetRegisterRow) {
-  return row.kind === "SG_PLANT" ? "SGD" : "AUD";
+  return row.kind === "SG_PLANT" || row.kind === "SG_RR" ? "SGD" : "AUD";
+}
+
+function parseCents(text: string): number | null {
+  const clean = text.replace(/[$,\s]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(clean)) return null;
+  return Math.round(Number(clean) * 100);
 }
 
 function DraftForm({ fund, value, onChange }: { fund: Fund; value: FixedAssetDraft; onChange(next: FixedAssetDraft): void }) {
@@ -49,9 +57,11 @@ function DraftForm({ fund, value, onChange }: { fund: Fund; value: FixedAssetDra
               ? { kind: "AU_DIV43", propertyId: value.propertyId, description: value.description, cost: value.cost, startDate: value.startDate, buildingType: "COMMERCIAL", constructionStartDate: value.startDate, constructionCompleteDate: value.startDate, firstIncomeUseDate: value.startDate, constructionExpenditure: value.cost }
               : kind === "AU_DIV40"
                 ? { kind: "AU_DIV40", propertyId: value.propertyId, description: value.description, cost: value.cost, startDate: value.startDate, assetClassId: "OTHER_PLANT", method: "PRIME_COST", effectiveLifeYears: 10 }
+                : kind === "SG_RR"
+                  ? { kind: "SG_RR", propertyId: value.propertyId, description: "New renovation and refurbishment claim", cost: value.cost, startDate: value.startDate, claimMode: "THREE_YEAR" }
                 : { kind: "SG_PLANT", propertyId: value.propertyId, description: value.description, cost: value.cost, startDate: value.startDate, assetClassId: "P_AND_M_GENERAL", regime: "S19A_3Y" });
           }}
-          options={fund.market === "AU" ? [{ value: "AU_DIV40", label: "Division 40 plant" }, { value: "AU_DIV43", label: "Division 43 capital works" }] : [{ value: "SG_PLANT", label: "Singapore plant and machinery" }]}
+          options={fund.market === "AU" ? [{ value: "AU_DIV40", label: "Division 40 plant" }, { value: "AU_DIV43", label: "Division 43 capital works" }] : [{ value: "SG_PLANT", label: "Singapore plant and machinery" }, { value: "SG_RR", label: "s14N renovation & refurbishment" }]}
         />
       </Field>
       <Field label="Property">
@@ -80,6 +90,10 @@ function DraftForm({ fund, value, onChange }: { fund: Fund; value: FixedAssetDra
           <Field label="Effective life (years)">
             <TextInput value={String(value.effectiveLifeYears ?? "")} onValueChange={(v) => set({ effectiveLifeYears: Number(v) || undefined })} />
           </Field>
+          <Field label="Low-value pool">
+            <Select value={value.poolMethod ?? ""} onValueChange={(poolMethod) => set({ poolMethod: poolMethod === "LOW_VALUE_POOL" ? "LOW_VALUE_POOL" : undefined })} options={[{ value: "", label: "No — calculate this asset separately" }, { value: "LOW_VALUE_POOL", label: "Yes — allocate to low-value pool" }]} />
+            <p className="field__hint">Only low-cost assets under A$1,000, or low-value assets with opening adjustable value under A$1,000, can be pooled.</p>
+          </Field>
         </>
       ) : value.kind === "AU_DIV43" ? (
         <>
@@ -102,6 +116,11 @@ function DraftForm({ fund, value, onChange }: { fund: Fund; value: FixedAssetDra
             <Select value={value.regime} onValueChange={(regime) => set({ regime: regime === "S19A_1Y_SPECIFIC" ? "S19A_1Y_SPECIFIC" : "S19A_3Y" })} options={[{ value: "S19A_3Y", label: "s19A 3-year write-off" }, { value: "S19A_1Y_SPECIFIC", label: "s19A one-year write-off" }]} />
           </Field>
         </>
+      ) : value.kind === "SG_RR" ? (
+        <Field label="Claim option">
+          <Select value={value.claimMode ?? "THREE_YEAR"} onValueChange={(claimMode) => set({ claimMode: claimMode === "ONE_YEAR" ? "ONE_YEAR" : "THREE_YEAR" })} options={[{ value: "THREE_YEAR", label: "Deduct over 3 YAs" }, { value: "ONE_YEAR", label: "Deduct in 1 YA" }]} />
+          <p className="field__hint">The engine applies the S$300,000 cap for each relevant 3-year period.</p>
+        </Field>
       ) : (
         <Field label="Loan end date">
           <TextInput type="date" value={value.loanEndDate} onValueChange={(loanEndDate) => set({ loanEndDate })} />
@@ -122,7 +141,7 @@ function RegisterTable({ rows, onEdit, onDispose, onDelete, readOnly }: { rows: 
     group.subtotal += row.deduction;
     return acc;
   }, []);
-  const columnCount = readOnly ? 8 : 9;
+  const columnCount = readOnly ? 10 : 11;
   return (
     <TableScroll label="Asset register">
       <table className="dt dt--dense dt--hover">
@@ -134,7 +153,9 @@ function RegisterTable({ rows, onEdit, onDispose, onDelete, readOnly }: { rows: 
             <th scope="col">Start</th>
             <th scope="col">Basis</th>
             <th scope="col" className="num">Opening WDV</th>
-            <th scope="col" className="num">Deduction</th>
+            <th scope="col" className="num">Base deduction</th>
+            <th scope="col" className="num">Balancing adjustment</th>
+            <th scope="col" className="num">Net deduction</th>
             <th scope="col" className="num">Closing WDV</th>
             {readOnly ? null : <th scope="col">Actions</th>}
           </tr>
@@ -146,7 +167,7 @@ function RegisterTable({ rows, onEdit, onDispose, onDelete, readOnly }: { rows: 
                 <th scope="row" colSpan={5}>
                   {group.propertyName}
                 </th>
-                <td colSpan={2}></td>
+                <td colSpan={4}></td>
                 <td className="num">{money(group.subtotal, currencyFor(group.rows[0]!), 0)}</td>
                 {readOnly ? null : <td></td>}
               </tr>
@@ -161,13 +182,21 @@ function RegisterTable({ rows, onEdit, onDispose, onDelete, readOnly }: { rows: 
                   <td>{dateLabel(row.startDate)}</td>
                   <td><span className="dt__sub">{displayBasis(row)}</span></td>
                   <td className="num">{money(row.openingWrittenDownValue, currencyFor(row), 0)}</td>
+                  <td className="num">{money(row.baseDeduction, currencyFor(row), 0)}</td>
+                  <td className="num">{money(row.balancingAdjustmentDeduction - row.balancingAdjustmentIncome, currencyFor(row), 0)}</td>
                   <td className="num">{money(row.deduction, currencyFor(row), 0)}</td>
                   <td className="num">{money(row.closingWrittenDownValue, currencyFor(row), 0)}</td>
                   {readOnly ? null : (
                     <td>
-                      <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>Edit</Button>{" "}
-                      <Button size="sm" variant="secondary" onClick={() => onDispose(row)}>Dispose</Button>{" "}
-                      <Button size="sm" variant="ghost" onClick={() => onDelete(row)}>Delete</Button>
+                      {row.source === "asset" ? (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>Edit</Button>{" "}
+                          <Button size="sm" variant="secondary" onClick={() => onDispose(row)}>Dispose</Button>{" "}
+                          <Button size="sm" variant="ghost" onClick={() => onDelete(row)}>Delete</Button>
+                        </>
+                      ) : (
+                        <span className="dt__sub">Calculated line</span>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -197,8 +226,14 @@ export function AssetsBody({ fund }: { fund: Fund }) {
   const [draft, setDraft] = useState<FixedAssetDraft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importText, setImportText] = useState("");
+  const [importFileNote, setImportFileNote] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AssetRegisterRow | null>(null);
+  const [disposeTarget, setDisposeTarget] = useState<AssetRegisterRow | null>(null);
+  // The Australian register follows the engine's 30 June income years, so a disposal defaults to the end of the year it shows.
+  const registerYearEnd = fund.market === "AU" ? `${fund.periodEnd.slice(0, 4)}-06-30` : fund.periodEnd;
+  const [disposeDate, setDisposeDate] = useState(registerYearEnd);
+  const [disposeProceedsText, setDisposeProceedsText] = useState("0");
   const fileInputId = useId();
   const fileHintId = `${fileInputId}-hint`;
   const preview = useMemo(() => parseAssetCsv(importText, fund, data.properties), [importText, fund, data.properties]);
@@ -215,6 +250,18 @@ export function AssetsBody({ fund }: { fund: Fund }) {
     dispatch(editingId ? { type: "asset-update", fundId: fund.id, assetId: editingId, asset: draft } : { type: "asset-add", fundId: fund.id, asset: draft });
     setDraft(null);
   };
+  const openDispose = (row: AssetRegisterRow) => {
+    setDisposeTarget(row);
+    setDisposeDate(row.disposalDate ?? registerYearEnd);
+    setDisposeProceedsText(String((row.disposalProceeds ?? 0) / 100));
+  };
+  const saveDispose = () => {
+    const disposeProceeds = parseCents(disposeProceedsText);
+    if (!disposeTarget || disposeProceeds === null) return;
+    dispatch({ type: "asset-dispose", fundId: fund.id, assetId: disposeTarget.id, disposalDate: disposeDate, disposalProceeds: disposeProceeds });
+    setDisposeTarget(null);
+  };
+  const disposeProceeds = parseCents(disposeProceedsText);
 
   return (
     <>
@@ -234,7 +281,8 @@ export function AssetsBody({ fund }: { fund: Fund }) {
             <DownloadButton onDownload={() => downloadCsv(view.csv)}>Download register CSV</DownloadButton>
             {readOnly ? null : <Button variant="primary" disabled={view.comparisons.every((c) => c.agrees)} onClick={() => dispatch({ type: "asset-apply-to-trial-balance", fundId: fund.id })}>Use register totals in the trial balance</Button>}
           </>}>
-            <RegisterTable rows={view.rows} readOnly={readOnly} onEdit={openEdit} onDispose={(row) => dispatch({ type: "asset-dispose", fundId: fund.id, assetId: row.id, disposalDate: fund.periodEnd, disposalProceeds: 0 })} onDelete={setDeleteTarget} />
+            <p className="muted">Division 40 balancing adjustments are included in the year's Div 40 trial-balance line: decline in value plus balancing deductions, less balancing income. Singapore balancing charges are shown the same way in the capital-allowances line.</p>
+            <RegisterTable rows={view.rows} readOnly={readOnly} onEdit={openEdit} onDispose={openDispose} onDelete={setDeleteTarget} />
           </Panel>
           <Panel title="Register vs trial balance">
             <TableScroll label="Register to trial balance comparison">
@@ -248,7 +296,7 @@ export function AssetsBody({ fund }: { fund: Fund }) {
         <Tabs.Panel id="schedule">
           <Panel title="Next 10 income years" actions={<DownloadButton onDownload={() => downloadPdf(view.scheduleDoc)}>Download PDF</DownloadButton>}>
             <TableScroll label="Asset allowance schedule">
-              <table className="dt dt--dense"><thead><tr><th scope="col">Year</th><th scope="col">Kind</th><th scope="col" className="num">Deduction</th></tr></thead><tbody>{view.schedule.map((row) => <tr key={`${row.year}-${row.kind}`}><th scope="row">{row.year}</th><td>{row.label}</td><td className="num">{money(row.deduction, fund.currency)}</td></tr>)}</tbody></table>
+              <table className="dt dt--dense"><thead><tr><th scope="col">Year</th><th scope="col">Kind</th><th scope="col" className="num">Base deduction</th><th scope="col" className="num">Balancing adjustment</th><th scope="col" className="num">Net deduction</th></tr></thead><tbody>{view.schedule.map((row) => <tr key={`${row.year}-${row.kind}`}><th scope="row">{row.year}</th><td>{row.label}</td><td className="num">{money(row.baseDeduction, fund.currency)}</td><td className="num">{money(row.balancingAdjustmentDeduction - row.balancingAdjustmentIncome, fund.currency)}</td><td className="num">{money(row.deduction, fund.currency)}</td></tr>)}</tbody></table>
             </TableScroll>
           </Panel>
         </Tabs.Panel>
@@ -265,22 +313,45 @@ export function AssetsBody({ fund }: { fund: Fund }) {
         <p>This removes the record from the register and recalculates the register totals. It does not change the trial balance until you apply register totals.</p>
       </Dialog>
 
-      <Dialog open={importOpen} onClose={() => setImportOpen(false)} title="Import asset CSV" size="lg" footer={<><DownloadButton onDownload={() => downloadCsv(csvTemplate(fund))}>Template CSV</DownloadButton><Button onClick={() => setImportOpen(false)}>Cancel</Button><Button variant="primary" disabled={preview.assets.length === 0 || preview.errors.length > 0} onClick={() => { dispatch({ type: "asset-import", fundId: fund.id, assets: preview.assets }); setImportOpen(false); }}>Import {preview.assets.length || ""}</Button></>}>
+      <Dialog open={disposeTarget !== null} onClose={() => setDisposeTarget(null)} title="Dispose asset" description={disposeTarget ? `Record the disposal date and termination value for ${disposeTarget.description}.` : undefined} footer={<><Button onClick={() => setDisposeTarget(null)}>Cancel</Button><Button variant="primary" disabled={disposeProceeds === null} onClick={saveDispose}>Record disposal</Button></>}>
+        <div className="form-grid">
+          <Field label="Disposal date" hint={fund.market === "AU" ? `This register shows the income year ending ${dateLabel(registerYearEnd)}; a later date falls in a later year.` : undefined}>
+            <TextInput type="date" value={disposeDate} onValueChange={setDisposeDate} />
+          </Field>
+          <Field label="Termination value / proceeds">
+            <TextInput inputMode="decimal" value={disposeProceedsText} onValueChange={setDisposeProceedsText} />
+          </Field>
+        </div>
+        <p className="muted">The engine compares termination value with adjustable value for the year and shows assessable balancing income or a deductible balancing adjustment.</p>
+      </Dialog>
+
+      <Dialog open={importOpen} onClose={() => setImportOpen(false)} title="Import assets" size="lg" footer={<><DownloadButton onDownload={() => downloadCsv(csvTemplate(fund))}>Template CSV</DownloadButton><Button onClick={() => setImportOpen(false)}>Cancel</Button><Button variant="primary" disabled={preview.assets.length === 0 || preview.errors.length > 0} onClick={() => { dispatch({ type: "asset-import", fundId: fund.id, assets: preview.assets }); setImportOpen(false); }}>Import {preview.assets.length || ""}</Button></>}>
         <div className="field">
-          <label className="field__label" htmlFor={fileInputId}>CSV file</label>
+          <label className="field__label" htmlFor={fileInputId}>CSV or Excel file</label>
           <input
             id={fileInputId}
             className="input"
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             aria-describedby={fileHintId}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
+              setImportFileNote(null);
               if (!file) return;
-              void file.text().then(setImportText);
+              if (file.size > 1_000_000) {
+                setImportFileNote("The file is larger than 1 MB.");
+                return;
+              }
+              readImportFile(file).then(
+                (read) => {
+                  setImportText(read.text);
+                  setImportFileNote(read.note ?? null);
+                },
+                (error: unknown) => setImportFileNote(error instanceof Error ? error.message : "The file could not be read."),
+              );
             }}
           />
-          <p id={fileHintId} className="field__hint">Choose a CSV file, or paste rows below. The selected file contents replace the paste box.</p>
+          <p id={fileHintId} className="field__hint">{importFileNote ?? "Choose a CSV or Excel file (the first sheet is read), or paste rows below. The file replaces the paste box."}</p>
         </div>
         <Field label="CSV rows" hint="Columns: kind, propertyId, description, cost, startDate, assetClassId, methodOrRegime, effectiveLifeYears. Import replaces this fund's asset register.">
           <TextArea rows={8} value={importText} onValueChange={setImportText} />

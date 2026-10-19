@@ -75,6 +75,22 @@
 .calendar-empty-cell {
   background: var(--muted);
 }
+.data-note {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: var(--muted-foreground);
+}
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.data-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.9rem;
+}
 @media (max-width: 760px) {
   .calendar-month-view {
     display: none;

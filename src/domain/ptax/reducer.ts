@@ -1,12 +1,13 @@
 // OWNER: Property taxes & duties agent (F2). Pure reducers for this feature's actions. Same rules as src/domain/actions.ts: never mutate data, check
-// permissions with permissions.can(...) and fund access, refuse edits outside "Preparing" where the workflow locks them, audit every success
-// (core/audit.ts appendAudit), and return { ok: false, reason } with a user-readable reason instead of throwing.
+// permissions with permissions.can(...) and fund access, audit every success (core/audit.ts appendAudit), and return { ok: false, reason } with a
+// user-readable reason instead of throwing. Property-tax records sit outside the distribution sign-off (like GST and obligations), so the workflow
+// status does not lock them: profiles need "edit"; notices and payments need "edit" or "lodge". The Property taxes workspace gates its buttons the same way.
 import type { Action, ActionResult, AppData, Ctx, Fund, Property } from "../types.ts";
 import { can, userHasFund } from "../permissions.ts";
 import { appendAudit } from "../core/audit.ts";
 import { MAX_NAME, isAmount, isISODate, isSafeInt } from "../core/validate.ts";
 import { money } from "../format.ts";
-import type { PropertyTaxProfile, PtaxAction, PtaxPayment, PtaxProfilePatch } from "./types.ts";
+import type { PropertyTaxProfile, PtaxAction, PtaxNotice, PtaxPayment, PtaxProfilePatch } from "./types.ts";
 import { defaultPropertyTaxProfile } from "./seed.ts";
 import { nextSequenceId } from "../core/ids.ts";
 import { propertyProfile as propertyProfileSchema } from "./schema.ts";
@@ -58,7 +59,8 @@ function canRecordPayment(data: AppData, fundId: string, ctx: Ctx): Fund | strin
 }
 
 function sameProfile(a: PropertyTaxProfile, b: PropertyTaxProfile): boolean {
-  return (Object.keys(a) as Array<keyof PropertyTaxProfile>).every((key) => a[key] === b[key]);
+  const keys = new Set<keyof PropertyTaxProfile>([...(Object.keys(a) as Array<keyof PropertyTaxProfile>), ...(Object.keys(b) as Array<keyof PropertyTaxProfile>)]);
+  return Array.from(keys).every((key) => a[key] === b[key]);
 }
 
 const EDITABLE_FIELDS = [
@@ -71,6 +73,7 @@ const EDITABLE_FIELDS = [
   "auTrustSurchargeApplies",
   "auResidential",
   "auResidentialShareBps",
+  "auMetropolitanRegion",
   "sgAnnualValue",
   "sgUsage",
   "sgOwnerOccupied",
@@ -119,6 +122,9 @@ function validatePatch(fund: Fund, patch: unknown): { patch?: PtaxProfilePatch; 
     } else if (field === "auResidentialShareBps") {
       if (value !== null && (!isSafeInt(value) || value < 0 || value > 10_000)) return { reason: "Residential share must be between 0 and 10,000 basis points" };
       clean[field] = value as number | null;
+    } else if (field === "auMetropolitanRegion") {
+      if (typeof value !== "boolean") return { reason: "Perth metropolitan region must be true or false" };
+      clean.auMetropolitanRegion = value;
     } else if (field === "sgResidentialPropertyCountBeforePurchase") {
       if (value !== null && (!isSafeInt(value) || value < 0 || value > 999)) return { reason: "Residential property count must be a whole number of zero or more" };
       clean[field] = value as number | null;
@@ -157,6 +163,7 @@ function validatePatch(fund: Fund, patch: unknown): { patch?: PtaxProfilePatch; 
     const auOnly = field.startsWith("au");
     const sgOnly = field.startsWith("sg");
     if (fund.market === "AU" && sgOnly && value !== null && value !== false) return { reason: `${field} is only for Singapore funds` };
+    if (fund.market === "SG" && field === "auMetropolitanRegion") return { reason: "Perth metropolitan region is only for Western Australian land" };
     if (fund.market === "SG" && auOnly && value !== null && value !== false) return { reason: `${field} is only for Australian funds` };
   }
   return { patch: clean };
@@ -186,6 +193,7 @@ function changedFields(before: PropertyTaxProfile, after: PropertyTaxProfile, cu
     auTrustSurchargeApplies: "trust surcharge",
     auResidential: "residential land",
     auResidentialShareBps: "residential share",
+    auMetropolitanRegion: "Perth metropolitan region",
     sgAnnualValue: "annual value",
     sgUsage: "usage",
     sgOwnerOccupied: "owner-occupied",
@@ -209,6 +217,7 @@ function changedFields(before: PropertyTaxProfile, after: PropertyTaxProfile, cu
       const to = after[key];
       const fmt = (value: unknown): string => {
         if (value === null) return "not set";
+        if (value === undefined) return "not set";
         if (typeof value === "boolean") return value ? "yes" : "no";
         if (typeof value === "number" && moneyFields.has(key)) return money(value, currency);
         return String(value);
@@ -216,6 +225,18 @@ function changedFields(before: PropertyTaxProfile, after: PropertyTaxProfile, cu
       return `${labels[key] ?? key}: ${fmt(from)} → ${fmt(to)}`;
     })
     .join("; ");
+}
+
+function normaliseProfilePatch(profile: PropertyTaxProfile, patch: PtaxProfilePatch): PtaxProfilePatch {
+  const next: PtaxProfilePatch = { ...patch };
+  const state = next.auState ?? profile.auState;
+  if (Object.hasOwn(next, "auState") && state !== "WA") {
+    delete next.auMetropolitanRegion;
+    next.auMetropolitanRegion = undefined;
+  } else if (state === "WA" && profile.auMetropolitanRegion === undefined && next.auMetropolitanRegion === undefined) {
+    next.auMetropolitanRegion = true;
+  }
+  return next;
 }
 
 function updateProfile(data: AppData, action: Extract<PtaxAction, { type: "ptax-update-profile" }>, ctx: Ctx): ActionResult {
@@ -227,8 +248,9 @@ function updateProfile(data: AppData, action: Extract<PtaxAction, { type: "ptax-
   if (typeof profile === "string") return fail(profile);
   const validated = validatePatch(fund, action.patch);
   if (validated.reason) return fail(validated.reason);
-  const next = { ...profile, ...validated.patch };
+  const next = { ...profile, ...normaliseProfilePatch(profile, validated.patch ?? {}) };
   if ((next.disposalDate === null) !== (next.disposalPrice === null)) return fail("Enter both disposal date and disposal price, or leave both blank");
+  if (next.auState !== "WA" && next.auMetropolitanRegion !== undefined) delete next.auMetropolitanRegion;
   const schemaError = schemaProblem(next);
   if (schemaError) return fail(schemaError);
   if (sameProfile(profile, next)) return succeed(data);
@@ -248,12 +270,80 @@ function resetProfile(data: AppData, action: Extract<PtaxAction, { type: "ptax-r
   if (typeof property === "string") return fail(property);
   const profile = profileOf(data, fund.id, property.id);
   if (typeof profile === "string") return fail(profile);
-  const next = { ...defaultPropertyTaxProfile(property, fund), payments: profile.payments };
+  const next = { ...defaultPropertyTaxProfile(property, fund), payments: profile.payments, ...(profile.notices ? { notices: profile.notices } : {}) };
   if (sameProfile(profile, next)) return succeed(data);
   return succeed({
     ...data,
     propertyProfiles: replace(data, next),
     audit: appendAudit(data, ctx, [{ fundId: fund.id, action: "Property tax profile updated", detail: `${property.name}: reset to defaults` }]),
+  });
+}
+
+function annualPeriodMatches(fund: Fund, period: string): boolean {
+  return fund.market === "AU" ? /^land-tax-\d{4}$/.test(period) : /^property-tax-\d{4}$/.test(period);
+}
+
+function recordNotice(data: AppData, action: Extract<PtaxAction, { type: "ptax-record-notice" }>, ctx: Ctx): ActionResult {
+  const fund = canRecordPayment(data, action.fundId, ctx);
+  if (typeof fund === "string") return fail(fund);
+  const property = propertyOf(data, fund.id, action.propertyId);
+  if (typeof property === "string") return fail(property);
+  const profile = profileOf(data, fund.id, property.id);
+  if (typeof profile === "string") return fail(profile);
+  const period = action.period.trim();
+  const reference = action.reference.trim();
+  if (period === "" || period.length > MAX_NAME || !annualPeriodMatches(fund, period)) return fail(fund.market === "AU" ? "Notice period must be land-tax-YYYY" : "Notice period must be property-tax-YYYY");
+  if (!isAmount(action.assessedAmount)) return fail("Assessed amount must be zero or more");
+  if (!isISODate(action.issueDate)) return fail("Notice issue date must be a date");
+  if (!isISODate(action.dueDate)) return fail("Notice due date must be a date");
+  if (action.dueDate < action.issueDate) return fail("Notice due date cannot be before the issue date");
+  if (reference === "" || reference.length > MAX_NAME) return fail("Notice reference is required");
+  const existing = profile.notices?.find((entry) => entry.period === period);
+  const notice: PtaxNotice = {
+    id: existing?.id ?? nextSequenceId("ptn", profile.notices?.map((entry) => entry.id) ?? []),
+    period,
+    assessedAmount: action.assessedAmount,
+    issueDate: action.issueDate,
+    dueDate: action.dueDate,
+    reference,
+  };
+  const notices = existing ? (profile.notices ?? []).map((entry) => (entry.id === existing.id ? notice : entry)) : [...(profile.notices ?? []), notice];
+  const next = { ...profile, notices };
+  const schemaError = schemaProblem(next);
+  if (schemaError) return fail(schemaError);
+  return succeed({
+    ...data,
+    propertyProfiles: replace(data, next),
+    audit: appendAudit(data, ctx, [{
+      fundId: fund.id,
+      action: fund.market === "AU" ? "Land tax assessment notice recorded" : "Property tax assessment notice recorded",
+      detail: `${property.name}: ${money(action.assessedAmount, fund.currency)} assessed, due ${action.dueDate} (${reference})`,
+    }]),
+  });
+}
+
+function removeNotice(data: AppData, action: Extract<PtaxAction, { type: "ptax-remove-notice" }>, ctx: Ctx): ActionResult {
+  const fund = canRecordPayment(data, action.fundId, ctx);
+  if (typeof fund === "string") return fail(fund);
+  const property = propertyOf(data, fund.id, action.propertyId);
+  if (typeof property === "string") return fail(property);
+  const profile = profileOf(data, fund.id, property.id);
+  if (typeof profile === "string") return fail(profile);
+  const notice = profile.notices?.find((entry) => entry.id === action.noticeId);
+  if (!notice) return fail("Assessment notice not found");
+  const notices = (profile.notices ?? []).filter((entry) => entry.id !== action.noticeId);
+  const next = { ...profile, ...(notices.length > 0 ? { notices } : {}) };
+  if (notices.length === 0) delete next.notices;
+  const schemaError = schemaProblem(next);
+  if (schemaError) return fail(schemaError);
+  return succeed({
+    ...data,
+    propertyProfiles: replace(data, next),
+    audit: appendAudit(data, ctx, [{
+      fundId: fund.id,
+      action: fund.market === "AU" ? "Land tax assessment notice removed" : "Property tax assessment notice removed",
+      detail: `${property.name}: ${notice.reference}`,
+    }]),
   });
 }
 
@@ -321,5 +411,7 @@ export function applyPtaxAction(data: AppData, action: PtaxAction, ctx: Ctx): Ac
   if (action.type === "ptax-reset-profile") return resetProfile(data, action, ctx);
   if (action.type === "ptax-record-payment") return recordPayment(data, action, ctx);
   if (action.type === "ptax-unrecord-payment") return unrecordPayment(data, action, ctx);
+  if (action.type === "ptax-record-notice") return recordNotice(data, action, ctx);
+  if (action.type === "ptax-remove-notice") return removeNotice(data, action, ctx);
   return fail("Unknown property tax action");
 }

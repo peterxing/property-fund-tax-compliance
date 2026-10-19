@@ -35,6 +35,11 @@ export function sgCostBaseView(data: AppData, fundIn: Fund, calc: FundCalc, _inv
     valuation: sumOf(properties.map((p) => p.valuation)),
     unrealised: sumOf(properties.map((p) => p.unrealised)),
   };
+  const tbInvestmentProperties = data.tbRows.filter((r) => r.fundId === fund.id && r.category === "balance-sheet" && /investment propert/i.test(r.name)).reduce((total, r) => total + r.current, 0);
+  const valuationNote =
+    Math.abs(propertyTotals.valuation - tbInvestmentProperties) >= 50
+      ? `Valuations total ${money(propertyTotals.valuation, "SGD", 2)}; investment properties in the trial balance are ${money(tbInvestmentProperties, "SGD", 2)}.`
+      : undefined;
 
   const seed = data.unitCostBase[fund.id] ?? { unitPrice: 0, priceBasis: "market price" as const, opening: {} };
   // Price in millionths so units x price stays exact integer arithmetic.
@@ -45,8 +50,10 @@ export function sgCostBaseView(data: AppData, fundIn: Fund, calc: FundCalc, _inv
     const returned = h.lines.find((l) => l.key === "capitalDistribution")?.amount ?? 0;
     const opening = seed.opening[h.holder.id] ?? 0;
     const adjustment = returned === 0 ? 0 : -returned;
-    const closing = Math.max(0, opening + adjustment);
-    excess.push(Math.max(0, -(opening + adjustment)));
+    const rawClosing = opening + adjustment;
+    const closing = Math.max(0, rawClosing);
+    const excessOverCostBase = Math.max(0, -rawClosing);
+    excess.push(excessOverCostBase);
     const marketValue = mulRatio(h.holder.units, priceMicros, 10_000);
     return {
       holderId: h.holder.id,
@@ -59,6 +66,7 @@ export function sgCostBaseView(data: AppData, fundIn: Fund, calc: FundCalc, _inv
       perUnit: h.holder.units > 0 ? closing / 100 / h.holder.units : 0,
       marketValue,
       unrealised: marketValue - closing,
+      excessOverCostBase,
     };
   });
   const aboveCost = unitRows.flatMap((r, i) => (excess[i] >= 1 ? [`${r.holder} ${money(excess[i], "SGD", 2)}`] : []));
@@ -112,6 +120,7 @@ export function sgCostBaseView(data: AppData, fundIn: Fund, calc: FundCalc, _inv
     properties,
     propertyTotals,
     sgNote: SG_NOTE,
+    ...(valuationNote === undefined ? {} : { sgValuationNote: valuationNote }),
     unitPriceLabel: `S$${seed.unitPrice.toFixed(3)} · ${seed.priceBasis}`,
     adjustmentLabel: "Return of capital reduces the cost of units",
     unitRows,

@@ -321,6 +321,14 @@ describe("unit cost base", () => {
     assert.ok(meranti.rows.every((r) => r.adjustment === "S$0"));
   });
 
+  it("shows Singapore excess over cost base on the affected unit row", () => {
+    const d = freshData();
+    d.unitCostBase["loyang"].opening["h-ly-1"] = 100_000;
+    const table = unitTable(costBaseView(d, "loyang", ctxFor(d)));
+    assert.equal(table.rows[0]?.excessOverCostBase, "S$1,504,700");
+    assert.equal(table.rows[1]?.excessOverCostBase, undefined);
+  });
+
   it("titles the unit price with the period end", () => {
     assert.equal(unitPriceHeading("2026-06-30"), "Unit price at 30 Jun 2026");
     assert.equal(unitPriceHeading("2026-09-30"), "Unit price at 30 Sep 2026");

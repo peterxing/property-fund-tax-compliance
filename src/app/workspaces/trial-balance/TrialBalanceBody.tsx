@@ -5,6 +5,7 @@ import { useAppData, useCtx, useWorkflow } from "../../state.tsx";
 import { AdjustmentsPanel } from "./AdjustmentsPanel.tsx";
 import { BookToTaxPanel } from "./BookToTaxPanel.tsx";
 import { ComponentsPanel } from "./ComponentsPanel.tsx";
+import { ExpenseAllocationPanel } from "./ExpenseAllocationPanel.tsx";
 import { HeaderPanel } from "./HeaderPanel.tsx";
 import { MappingPanel } from "./MappingPanel.tsx";
 import "./trial-balance.css";
@@ -28,6 +29,7 @@ export function TrialBalanceBody({ fund }: { fund: Fund }) {
         <AdjustmentsPanel fund={fund} view={view} canEdit={canEdit} />
       </div>
       <ComponentsPanel fund={fund} view={view} canEdit={canEdit} lockNote={lockNote} />
+      <ExpenseAllocationPanel fund={fund} canEdit={canEdit} lockNote={lockNote} />
       <MappingPanel fund={fund} view={view} canEdit={canEdit} />
     </>
   );

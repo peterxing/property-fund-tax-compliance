@@ -4,6 +4,7 @@ import { money } from "../../../domain/format.ts";
 import type { CompareSource } from "../../../domain/providers.ts";
 import type { Fund } from "../../../domain/types.ts";
 import { downloadCsv } from "../../exports/index.ts";
+import { readImportFile } from "../../imports/index.ts";
 import { useAppData, useCtx, useDispatch, useWorkflow } from "../../state.tsx";
 import { Badge, Banner, Button, DownloadButton, Field, Panel, Select, TableScroll, Tag, TextArea, TextInput, buttonClass, useAnnounce } from "../../ui/index.ts";
 import { comparisonFor, loadMappings, ourCsv, parseText, queryDraft, saveMappings } from "./model.ts";
@@ -56,35 +57,40 @@ function TheirInput({
   practice?: { label: string; text: string };
 }) {
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
   const fileId = useId();
   const readFile = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0];
     if (!file) return;
-    file
-      .text()
-      .then((value) => {
+    readImportFile(file)
+      .then((result) => {
         setError("");
-        setText(value);
+        setNote(result.note ?? "");
+        setText(result.text);
       })
-      .catch(() => setError("Could not read the file."));
+      .catch((readError) => {
+        setNote("");
+        setError(readError instanceof Error ? readError.message : "Could not read the file.");
+      });
   };
   return (
     <Panel title="2. Load their figures" bodyClassName="stack stack--tight">
-      <p className="text-muted">Upload a CSV or paste an Excel range. It all runs in your browser; nothing is sent to a server.</p>
+      <p className="text-muted">Upload a CSV or Excel workbook, or paste an Excel range. It all runs in your browser; nothing is sent to a server.</p>
       {error ? <Banner tone="error">{error}</Banner> : null}
+      {note ? <Banner tone="info">{note}</Banner> : null}
       <div className="button-row">
         <label className={buttonClass({ variant: "secondary" })} htmlFor={fileId}>
-          Choose CSV file
+          Choose CSV or Excel file
         </label>
-        <input id={fileId} type="file" accept=".csv,.txt,.tsv,text/csv,text/tab-separated-values,text/plain" className="sr-only" onChange={readFile} />
+        <input id={fileId} type="file" accept=".csv,.txt,.tsv,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={readFile} />
         {practice ? (
-          <Button type="button" variant="secondary" onClick={() => setText(practice.text)}>
+          <Button type="button" variant="secondary" onClick={() => { setError(""); setNote(""); setText(practice.text); }}>
             Load the practice file
           </Button>
         ) : null}
       </div>
       <Field label="Or paste their CSV or Excel range">
-        <TextArea value={text} rows={7} onValueChange={setText} placeholder="Reference, Label, Amount&#10;component.ausOtherIncome, Australian income, A$60,006,781" />
+        <TextArea value={text} rows={7} onValueChange={(value) => { setError(""); setNote(""); setText(value); }} placeholder="Reference, Label, Amount&#10;component.ausOtherIncome, Australian income, A$60,006,781" />
       </Field>
       {parsed ? (
         <>

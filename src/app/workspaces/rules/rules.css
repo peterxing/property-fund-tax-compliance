@@ -58,6 +58,29 @@
 .rules-more {
   margin-top: var(--space-3);
 }
+.rules-settings {
+  min-width: 92rem;
+}
+.rules-settings__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+}
+.rules-settings__bar p {
+  margin: 0;
+}
+.rules-settings__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--space-2);
+}
+.rules-settings__links a {
+  white-space: nowrap;
+}
 @media (max-width: 900px) {
   .rules-layout {
     grid-template-columns: 1fr;

@@ -25,8 +25,9 @@ const cases: Array<{ id: string; summary: RegExp; expected: Array<[string, strin
   { id: "sg-stamp-duty", summary: /S\$8,459,600/, expected: [["BSD", "S$659,600"], ["ABSD", "S$7,800,000"]] },
   // Source: IRAS property-tax non-residential 10% rule. Arithmetic: $240k annual value x 10% = $24k, no rebate.
   { id: "sg-property-tax", summary: /S\$24,000/, expected: [["Gross tax", "S$24,000"], ["Net tax", "S$24,000"]] },
-  // Source: IRAS Section 45 WHT and penalty rules. Arithmetic: interest WHT 15% x $1.0m = $150k; late penalty 5% + 1% = $9k.
-  { id: "sg-withholding-tax", summary: /S\$150,000/, expected: [["Tax", "S$150,000"], ["Late penalty", "S$9,000"]] },
+  // Source: IRAS Section 45 WHT and penalty rules. Arithmetic: interest WHT 15% x $1.0m = $150k; due 15 Oct, paid 20 Nov: 5% penalty = $7.5k
+  // (the 1% per completed month starts 30 days after the due date, 14 Nov, and no month is complete by 20 Nov).
+  { id: "sg-withholding-tax", summary: /S\$150,000/, expected: [["Tax", "S$150,000"], ["Late penalty", "S$7,500"]] },
   // Source: IRAS CIT rate/exemption/rebate page. Arithmetic: $500k - $102.5k PTE = $397.5k; 17% = $67,575; 50% rebate less $2k cash grant effect = $31,788; payable $35,788.
   { id: "sg-cit", summary: /S\$35,788/, expected: [["Exemption", "S$102,500"], ["Tax payable", "S$35,788"]] },
   // Source: IRAS GST registration and late-payment pages. Arithmetic: retrospective turnover $1.2m > $1.0m; filing $600; payment $100k x (5% + 8%) = $13k.
@@ -74,8 +75,8 @@ test("calculator registry has the expected coverage", () => {
 
 test("the duty and land tax calculators offer every modelled state, and WA and SA cite their own rules", () => {
   const stateOptions = (id: string) => calculatorById(id).fields.find((field) => field.key === "state")?.options?.map((option) => option.value);
-  assert.deepEqual(stateOptions("au-transfer-duty"), ["NSW", "VIC", "QLD", "WA", "SA"]);
-  assert.deepEqual(stateOptions("au-land-tax"), ["NSW", "VIC", "QLD", "WA", "SA"]);
+  assert.deepEqual(stateOptions("au-transfer-duty"), ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]);
+  assert.deepEqual(stateOptions("au-land-tax"), ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]);
 
   const landTax = calculatorById("au-land-tax");
   const wa = landTax.compute({ ...defaultValues(landTax), state: "WA", landValue: 400_000_00 });

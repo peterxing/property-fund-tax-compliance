@@ -19,6 +19,22 @@ test("asset import CSV parser creates market-specific drafts", () => {
   assert.equal(parsed.assets.length, 1);
   assert.equal(parsed.assets[0]?.kind, "AU_DIV40");
   assert.equal(parsed.assets[0]?.cost, 120050);
+
+  const pool = parseAssetCsv("kind,propertyId,description,cost,startDate,assetClassId,methodOrRegime,effectiveLifeYears\nAU_DIV40,,Low-cost controller,950,2025-10-01,OTHER_PLANT,LOW_VALUE_POOL,4", fund);
+  assert.deepEqual(pool.errors, []);
+  assert.equal(pool.assets[0]?.kind, "AU_DIV40");
+  assert.equal(pool.assets[0]?.poolMethod, "LOW_VALUE_POOL");
+});
+
+test("asset import CSV parser creates Singapore s14N renovation drafts", () => {
+  const fund = seedData().funds.find((f) => f.id === "telok-ayer");
+  assert.ok(fund);
+  const csv = "kind,propertyId,description,cost,startDate,assetClassId,methodOrRegime,effectiveLifeYears\nSG_RR,,Lobby renovation,120000,2026-08-01,,ONE_YEAR,";
+  const parsed = parseAssetCsv(csv, fund);
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.assets.length, 1);
+  assert.equal(parsed.assets[0]?.kind, "SG_RR");
+  assert.equal(parsed.assets[0]?.claimMode, "ONE_YEAR");
 });
 
 test("asset import CSV parser validates bad rows", () => {
@@ -35,6 +51,7 @@ test("asset import CSV parser validates bad rows", () => {
   assert.match(parseAssetCsv(`${header}\nAU_DIV40,,${"x".repeat(201)},100,2026-01-01,OTHER_PLANT,PRIME_COST,10`, auFund).errors.join(" "), /description/);
   assert.match(parseAssetCsv(`${header}\nAU_DIV40,,Bad life,100,2026-01-01,OTHER_PLANT,PRIME_COST,-1`, auFund).errors.join(" "), /effectiveLifeYears/);
   assert.match(parseAssetCsv(`${header}\nAU_DIV40,,Bad class,100,2026-01-01,NOT_A_CLASS,PRIME_COST,10`, auFund).errors.join(" "), /assetClassId/);
+  assert.match(parseAssetCsv(`${header}\nSG_RR,,Bad R&R,100,2026-01-01,,BAD,`, sgFund).errors.join(" "), /THREE_YEAR|ONE_YEAR/);
   assert.match(parseAssetCsv(`${header}\nAU_DIV40,harbourline-harbourline-tower,Wrong property,100,2026-01-01,OTHER_PLANT,PRIME_COST,10`, auFund, seedData().properties).errors.join(" "), /propertyId/);
   const tooMany = `${header}\n${Array.from({ length: 2001 }, (_, i) => `AU_DIV40,,Asset ${i},100,2026-01-01,OTHER_PLANT,PRIME_COST,10`).join("\n")}`;
   assert.match(parseAssetCsv(tooMany, auFund).errors.join(" "), /2,000|2000/);
