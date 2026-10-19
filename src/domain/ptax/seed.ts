@@ -47,7 +47,8 @@ export function defaultPropertyTaxProfile(property: Property, fund: Fund = fundM
       auOwnerKind: "TRUST",
       auOwnerForeign: false,
       auOwnerAbsentee: false,
-      auTrustSurchargeApplies: true,
+      // South Australia assesses a listed or widely held public unit trust scheme at the general rates, not the trust rates.
+      auTrustSurchargeApplies: !(state === "SA" && fund.listed),
       auResidential: residential,
       auResidentialShareBps: residential ? 10_000 : null,
       sgAnnualValue: null,

@@ -191,9 +191,12 @@ test("SG owner-occupied flag should drive owner-occupier residential rates or be
 
 test("not-modelled cases are rendered as not modelled, excluded from totals, and payment status drives deadlines", () => {
   const data = seedData();
+  // Tasmania is catalogued but not modelled: move Lakeside Marketplace there to see the not-modelled presentation.
+  Object.assign(profile(data, "wattle-lakeside-marketplace"), { auState: "TAS" });
   const wattleAnnual = propertyTaxView(data, "wattle", { now: NOW });
-  const sa = wattleAnnual.rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
-  assert.equal(sa?.status, "not-modelled");
+  const tas = wattleAnnual.rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
+  assert.equal(tas?.status, "not-modelled");
+  assert.match(tas?.basis ?? "", /Tasmania land tax is not modelled/);
   assert.equal(wattleAnnual.csv.rows.find((row) => row[0] === "Lakeside Marketplace")?.[5], "Not modelled");
   assert.equal(wattleAnnual.doc.blocks.some((block) => block.kind === "table" && block.rows.some((row) => row.property === "Lakeside Marketplace" && row.total === "Not modelled")), true);
   assert.equal(wattleAnnual.totals.total, wattleAnnual.rows.filter((row) => row.status === "modelled").reduce((sum, row) => sum + row.total, 0));
@@ -261,4 +264,45 @@ test("trust treatment note distinguishes listed/fixed AMIT assumptions from trus
   assert.match(AU_LAND_TAX_ASSUMPTION, /NSW special-trust no-threshold/);
   assert.match(AU_LAND_TAX_ASSUMPTION, /Review fixed\/unit-trust notifications/);
   assert.match(AU_LAND_TAX_ASSUMPTION, /Queensland uses the company\/trust scale/);
+  // SA: RevenueSA assesses listed and widely held public unit trust schemes at the general rates. WA: one scale, plus MRIT in the Perth region.
+  assert.match(AU_LAND_TAX_ASSUMPTION, /South Australia uses its trust rates while Trust surcharge applies is Yes/);
+  assert.match(AU_LAND_TAX_ASSUMPTION, /Metropolitan Region Improvement Tax/);
+});
+
+test("WA and SA land tax and duty for the seeded properties match figures worked out from the published tables", () => {
+  const data = seedData();
+  const row = <T extends { propertyId: string }>(rows: readonly T[], id: string): T => {
+    const found = rows.find((entry) => entry.propertyId === id);
+    assert.ok(found, id);
+    return found;
+  };
+  const wattle = propertyTaxView(data, "wattle", { now: NOW }).rows;
+  const kurrajong = propertyTaxView(data, "kurrajong", { now: NOW }).rows;
+
+  // Lakeside Marketplace (SA, land A$277,980,749.50). Wattle is listed, so the seed assesses it at RevenueSA's 2025-26 general rates:
+  // A$32,005 + A$2.40 for each of the 2,748,648 parts of A$100 above A$3,116,000.
+  assert.equal(profile(data, "wattle-lakeside-marketplace").auTrustSurchargeApplies, false);
+  const lakeside = row(wattle, "wattle-lakeside-marketplace");
+  assert.deepEqual([lakeside.status, lakeside.tax, lakeside.surcharge, lakeside.total], ["modelled", 662_876_020, 0, 662_876_020]);
+  assert.equal(lakeside.basisTitle, "South Australia land tax general rates");
+
+  // Banksia Plaza (WA, land A$266,398,217.50): A$186,550 + 2.67% above A$11,000,000, and MRIT of 0.14% above A$300,000.
+  const banksia = row(wattle, "wattle-banksia-plaza");
+  assert.equal(banksia.tax, 18_655_000 + mulBps(26_639_821_750 - 1_100_000_000, 267));
+  assert.equal(banksia.surcharge, mulBps(26_639_821_750 - 30_000_000, 14));
+  assert.deepEqual([banksia.tax, banksia.surcharge, banksia.total], [700_568_241, 37_253_750, 737_821_991]);
+  assert.equal(banksia.basisTitle, "Western Australia land tax scale; WA Metropolitan Region Improvement Tax");
+
+  // Fremantle Wharf Offices (WA, land A$118,856,820.50).
+  const fremantle = row(kurrajong, "kurrajong-fremantle-wharf-offices");
+  assert.deepEqual([fremantle.tax, fremantle.surcharge, fremantle.total], [306_632_711, 16_597_955, 323_230_666]);
+
+  // Duties: WA general rate, A$28,453 + A$5.15 for every A$100 or part above A$725,000. Lakeside (SA, 2012) stays unmodelled.
+  const wattleDuties = dutiesView(data, "wattle", { now: NOW }).rows;
+  assert.deepEqual([row(wattleDuties, "wattle-banksia-plaza").status, row(wattleDuties, "wattle-banksia-plaza").totalDuty], ["modelled", 2_845_300 + Math.ceil((52_249_287_500 - 72_500_000) / 10_000) * 515]);
+  assert.equal(row(wattleDuties, "wattle-banksia-plaza").totalDuty, 2_689_949_985);
+  const lakesideDuty = row(wattleDuties, "wattle-lakeside-marketplace");
+  assert.equal(lakesideDuty.status, "not-modelled");
+  assert.match(lakesideDuty.basis, /contracts from 1 July 2018, when duty on non-residential land ended; this contract is dated 21 May 2012\./);
+  assert.equal(row(dutiesView(data, "kurrajong", { now: NOW }).rows, "kurrajong-fremantle-wharf-offices").totalDuty, 1_407_805_470);
 });

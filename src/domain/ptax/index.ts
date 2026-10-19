@@ -15,8 +15,11 @@ export type * from "./types.ts";
 type Modelled<T> = { ok: true; value: T } | { ok: false; reason: string; ruleIds?: string[] };
 
 const TAX_WORKSPACE = "/property-taxes";
+/** The annual table's second tax column: AU holds foreign/absentee surcharges and WA's MRIT; SG holds the (negative) property tax rebate. */
+export const surchargeColumnLabel = (market: Fund["market"]): string => (market === "AU" ? "Surcharge or MRIT" : "Rebate");
+
 export const AU_LAND_TAX_ASSUMPTION =
-  "Australian land tax profiles treat listed property funds as trust owners by default. Victoria applies the trust scale while Trust surcharge applies is Yes; NSW special-trust no-threshold treatment is available by changing Owner kind to Special trust; Queensland uses the company/trust scale. Review fixed/unit-trust notifications before relying on the result.";
+  "Australian land tax profiles treat listed property funds as trust owners by default. Victoria applies the trust scale while Trust surcharge applies is Yes; NSW special-trust no-threshold treatment is available by changing Owner kind to Special trust; Queensland uses the company/trust scale. South Australia uses its trust rates while Trust surcharge applies is Yes; the seeded listed funds have it set to No because RevenueSA assesses listed and widely held public unit trust schemes at the general rates. Western Australia has one scale for every owner, plus the Metropolitan Region Improvement Tax, which is applied to every WA property as if it were in the Perth metropolitan region. Review fixed/unit-trust notifications before relying on the result.";
 
 function annualPeriod(fund: Fund, year: number): string {
   return fund.market === "AU" ? `land-tax-${year}` : `property-tax-${year}`;
@@ -44,6 +47,10 @@ function ruleTitle(id: string): string {
   if (id.startsWith("qld.land-tax.company-trust")) return "Queensland company and trust land tax";
   if (id.startsWith("qld.land-tax.individual")) return "Queensland individual land tax";
   if (id.startsWith("qld.land-tax.foreign-entity")) return "Queensland foreign company/trust surcharge";
+  if (id.startsWith("wa.land-tax.general")) return "Western Australia land tax scale";
+  if (id.startsWith("wa.land-tax.mrit")) return "WA Metropolitan Region Improvement Tax";
+  if (id.startsWith("sa.land-tax.general")) return "South Australia land tax general rates";
+  if (id.startsWith("sa.land-tax.trust")) return "South Australia land tax trust rates";
   if (id.startsWith("property-tax.other")) return "10% rule for non-residential property and vacant land";
   if (id.startsWith("property-tax.noor")) return "Non-owner-occupier residential property tax rates";
   if (id.startsWith("property-tax.ootr")) return "Owner-occupier residential property tax rates";
@@ -54,6 +61,10 @@ function ruleTitle(id: string): string {
   if (id.startsWith("vic.surcharge")) return "Victoria foreign purchaser additional duty";
   if (id.startsWith("qld.transfer")) return "Queensland transfer-duty rates";
   if (id.startsWith("qld.surcharge")) return "Queensland additional foreign acquirer duty";
+  if (id.startsWith("wa.transfer")) return "Western Australia transfer duty general rate";
+  if (id.startsWith("wa.surcharge")) return "Western Australia foreign transfer duty";
+  if (id.startsWith("sa.transfer")) return "South Australia conveyance duty rates";
+  if (id.startsWith("sa.qualifying-land")) return "South Australia: no duty on qualifying land";
   if (id.startsWith("bsd.")) return "Buyer's Stamp Duty (BSD)";
   if (id.startsWith("absd.")) return "Additional Buyer's Stamp Duty (ABSD)";
   if (id.startsWith("ssd.")) return "Seller's Stamp Duty (SSD)";
@@ -299,7 +310,7 @@ function sgAnnualRows(data: AppData, fund: Fund, year: number): AnnualTaxRow[] {
 function annualCsv(fund: Fund, rows: AnnualTaxRow[]): CsvModel {
   return {
     fileName: `${slug(fund.name)}-property-tax.csv`,
-    columns: ["Property", "Location", fund.market === "AU" ? "State" : "Usage", "Tax base", "Basis", "Tax", "Surcharge / rebate", "Total", "Due", "Status"],
+    columns: ["Property", "Location", fund.market === "AU" ? "State" : "Usage", "Tax base", "Basis", "Tax", surchargeColumnLabel(fund.market), "Total", "Due", "Status"],
     rows: rows.map((row) => [row.propertyName, row.location, row.stateOrUsage, row.value === null ? "" : row.value / 100, row.status === "modelled" ? `${row.basisTitle} (${row.ruleIds.join("; ")})` : row.basis, row.status === "modelled" ? row.tax / 100 : "Not modelled", row.status === "modelled" ? row.surcharge / 100 : "Not modelled", row.status === "modelled" ? row.total / 100 : "Not modelled", row.dueLabel, row.paid ? "Paid" : row.status]),
   };
 }
@@ -311,7 +322,7 @@ function annualDoc(fund: Fund, rows: AnnualTaxRow[], totals: PropertyTaxView["to
     subtitle: fund.name,
     meta: [{ label: "Period", value: fund.periodLabel }],
     blocks: [
-      { kind: "paragraph", text: "Demonstration working paper. Rates and thresholds come from the engine and unsupported states are shown without guessed amounts.", tone: "note" },
+      { kind: "paragraph", text: "Demonstration working paper. Rates and thresholds come from the cited rules; states that are not modelled are shown without guessed amounts.", tone: "note" },
       {
         kind: "table",
         title: "Annual property taxes",
@@ -319,7 +330,7 @@ function annualDoc(fund: Fund, rows: AnnualTaxRow[], totals: PropertyTaxView["to
           { key: "property", label: "Property" },
           { key: "basis", label: "Basis" },
           { key: "tax", label: "Tax", align: "right" },
-          { key: "surcharge", label: "Surcharge / rebate", align: "right" },
+          { key: "surcharge", label: surchargeColumnLabel(fund.market), align: "right" },
           { key: "total", label: "Total", align: "right" },
         ],
         rows: rows.map((row) => ({ property: row.propertyName, basis: row.status === "modelled" ? row.basisTitle : row.basis, tax: row.status === "modelled" ? money(row.tax, fund.currency) : "Not modelled", surcharge: row.status === "modelled" ? money(row.surcharge, fund.currency) : "Not modelled", total: row.status === "modelled" ? money(row.total, fund.currency) : "Not modelled" })),
@@ -361,7 +372,7 @@ function auDutyRow(fund: Fund, property: Property, profile: PropertyTaxProfile):
       purchaser: { kind: profile.auPurchaserKind!, foreignPerson: profile.auForeignPurchaser, trustWithForeignBeneficiaries: profile.auForeignPurchaser },
     }),
   );
-  if (!result.ok) return notModelledDutyRow(property, profile, result.reason);
+  if (!result.ok) return notModelledDutyRow(property, profile, readableDutyReason(result.reason, profile.auState, profile.purchaseDate));
   return {
     propertyId: property.id,
     propertyName: property.name,
@@ -375,13 +386,19 @@ function auDutyRow(fund: Fund, property: Property, profile: PropertyTaxProfile):
     ssdDuty: 0,
     totalDuty: result.value.totalDuty,
     deadline: null,
-    deadlineLabel: "AU payment deadline not modelled by engine",
+    deadlineLabel: "Payment deadline not modelled",
     paid: paid(profile, "duty", dutyPeriod(profile)),
     payments: paymentsFor(profile, "duty", dutyPeriod(profile)),
     status: "modelled",
     notes: [...result.value.notes, ...result.value.findings.map((finding) => finding.message)],
     ruleIds: result.value.ruleVersion.split("+"),
   };
+}
+
+/** The engine's "no rate table for this date" error, in words for the page: the rates in force at the contract date are not in the app. */
+function readableDutyReason(reason: string, state: AuState, contractDate: string): string {
+  if (!/^No rule data for /.test(reason)) return reason;
+  return `${stateLabel(state)} transfer duty rates for a contract dated ${dateLabel(contractDate)} are not in the app (only later contracts are modelled); work it out separately.`;
 }
 
 function missingDutyRow(property: Property, profile: PropertyTaxProfile, reason: string): DutyRow {

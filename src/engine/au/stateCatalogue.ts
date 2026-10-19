@@ -42,16 +42,16 @@ export const AU_STATE_TAX_CATALOGUE = [
   {
     state: "WA",
     label: "Western Australia",
-    transferDutyCoverage: "NOT_MODELLED",
-    landTaxCoverage: "NOT_MODELLED",
-    description: "Catalogued only in this delivery; WA duty and land tax rates need a separate verified implementation.",
+    transferDutyCoverage: "PARTIAL",
+    landTaxCoverage: "FULL",
+    description: "Verified WA land tax scale and Metropolitan Region Improvement Tax, and the WA general rate of transfer duty with 7% foreign transfer duty on residential property; WA landholder duty and concessional rates are not modelled.",
   },
   {
     state: "SA",
     label: "South Australia",
-    transferDutyCoverage: "NOT_MODELLED",
-    landTaxCoverage: "NOT_MODELLED",
-    description: "Catalogued only in this delivery; SA duty and land tax rates need a separate verified implementation.",
+    transferDutyCoverage: "PARTIAL",
+    landTaxCoverage: "FULL",
+    description: "Verified South Australian general and trust land tax rates for 2021-22 to 2026-27, and conveyance duty for contracts from 1 July 2018 with no duty on qualifying (non-residential) land; SA landholder duty, the foreign ownership surcharge and earlier contracts are not modelled.",
   },
   {
     state: "TAS",

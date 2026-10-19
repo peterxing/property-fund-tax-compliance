@@ -9,7 +9,9 @@ test("property taxes workspace renders annual taxes and switches to duties", asy
   assert.match(app.flat(), /A\$9,674,048/);
   await app.click(app.byRole("tab", "Duties on acquisition"));
   assert.match(app.flat(), /Riverside Place/);
-  assert.match(app.flat(), /QLD transfer-duty formula|qld\.transfer/);
+  assert.match(app.flat(), /Queensland transfer-duty rates/, "the basis is named in words");
+  assert.ok(app.$$(".ptax-basis").some((cell) => /^Rules: qld\.transfer\./.test(cell.getAttribute("title") ?? "")), "the rule ids stay on hand in the cell's title");
+  assert.doesNotMatch(app.flat(), /qld\.transfer\./, "and are not printed in the table");
 });
 
 test("profiles tab is read-only for finance and editable for a preparer with fund access", async () => {

@@ -3,7 +3,7 @@ import { parseISO } from "../dates.ts";
 import type { Cents } from "../money.ts";
 import { assertCents, floorToDollar, mulBps, mulRatio } from "../money.ts";
 import type { Effective, RuleEntry } from "../rules.ts";
-import { ENGINE_DISCLAIMER_AU, requireEffective } from "../rules.ts";
+import { ENGINE_DISCLAIMER_AU, pickEffective, requireEffective } from "../rules.ts";
 import type { ComputationLine, Finding } from "../types.ts";
 import type { AuState } from "./types.ts";
 
@@ -126,6 +126,14 @@ interface ForeignSurchargeRate {
 
 function dollars(cents: Cents): string {
   return `A$${(cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "21 May 2012", for messages a person reads. */
+function longDate(date: ISODate): string {
+  const { y, m, d } = parseISO(date);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
 function assertDate(date: ISODate, label: string): ISODate {
@@ -390,6 +398,56 @@ const QLD_FOREIGN_SURCHARGE_RATES: readonly Effective<ForeignSurchargeRate>[] = 
   { from: "2016-10-01", value: { ruleVersion: "qld.surcharge.2016-10-01", rateBps: 800 } },
 ];
 
+// Western Australia general rate (Department of Treasury and Finance). The page applies it to transactions from 2 July 2014 and directs
+// earlier transactions to RevenueWA, so earlier contracts are not modelled.
+const WA_TRANSFER_SCHEDULES: readonly Effective<TransferSchedule>[] = [
+  {
+    from: "2014-07-02",
+    value: {
+      ruleVersion: "wa.transfer.2014-07-02",
+      minimumDuty: 0,
+      bands: [
+        { from: 0, to: 12_000_000, baseDuty: 0, excessFrom: 0, ratePer100: 190, label: "A$0 to A$120,000" },
+        { from: 12_000_001, to: 15_000_000, baseDuty: 228_000, excessFrom: 12_000_000, ratePer100: 285, label: "A$120,001 to A$150,000" },
+        { from: 15_000_001, to: 36_000_000, baseDuty: 313_500, excessFrom: 15_000_000, ratePer100: 380, label: "A$150,001 to A$360,000" },
+        { from: 36_000_001, to: 72_500_000, baseDuty: 1_111_500, excessFrom: 36_000_000, ratePer100: 475, label: "A$360,001 to A$725,000" },
+        { from: 72_500_001, baseDuty: 2_845_300, excessFrom: 72_500_000, ratePer100: 515, label: "A$725,001 and over" },
+      ],
+    },
+  },
+];
+
+/** WA foreign transfer duty: 7% of the dutiable value of residential property acquired by a foreign person, from 1 January 2019. */
+const WA_FOREIGN_SURCHARGE_RATES: readonly Effective<ForeignSurchargeRate>[] = [
+  { from: "2019-01-01", value: { ruleVersion: "wa.surcharge.2019-01-01", rateBps: 700 } },
+];
+
+// South Australia conveyance rates (RevenueSA "Rate of stamp duty"). Applied to contracts from 1 July 2018, when duty on qualifying
+// (non-residential, non-primary-production) land ended (Stamp Duties Act 1923 s71DC; RevenueSA Information Circular 103); earlier
+// contracts, including the phase-out years, are not modelled.
+const SA_TRANSFER_FROM = "2018-07-01";
+const SA_TRANSFER_SCHEDULES: readonly Effective<TransferSchedule>[] = [
+  {
+    from: SA_TRANSFER_FROM,
+    value: {
+      ruleVersion: "sa.transfer.2018-07-01",
+      minimumDuty: 0,
+      bands: [
+        { from: 0, to: 1_200_000, baseDuty: 0, excessFrom: 0, ratePer100: 100, label: "Not more than A$12,000" },
+        { from: 1_200_001, to: 3_000_000, baseDuty: 12_000, excessFrom: 1_200_000, ratePer100: 200, label: "More than A$12,000 to A$30,000" },
+        { from: 3_000_001, to: 5_000_000, baseDuty: 48_000, excessFrom: 3_000_000, ratePer100: 300, label: "More than A$30,000 to A$50,000" },
+        { from: 5_000_001, to: 10_000_000, baseDuty: 108_000, excessFrom: 5_000_000, ratePer100: 350, label: "More than A$50,000 to A$100,000" },
+        { from: 10_000_001, to: 20_000_000, baseDuty: 283_000, excessFrom: 10_000_000, ratePer100: 400, label: "More than A$100,000 to A$200,000" },
+        { from: 20_000_001, to: 25_000_000, baseDuty: 683_000, excessFrom: 20_000_000, ratePer100: 425, label: "More than A$200,000 to A$250,000" },
+        { from: 25_000_001, to: 30_000_000, baseDuty: 895_500, excessFrom: 25_000_000, ratePer100: 475, label: "More than A$250,000 to A$300,000" },
+        { from: 30_000_001, to: 50_000_000, baseDuty: 1_133_000, excessFrom: 30_000_000, ratePer100: 500, label: "More than A$300,000 to A$500,000" },
+        { from: 50_000_001, baseDuty: 2_133_000, excessFrom: 50_000_000, ratePer100: 550, label: "More than A$500,000" },
+      ],
+    },
+  },
+];
+const SA_QUALIFYING_LAND_RULE = "sa.qualifying-land.2018-07-01";
+
 const NSW_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
   {
     from: "2024-02-01",
@@ -490,10 +548,56 @@ function computeQldTransferDuty(date: ISODate, dutiableValue: Cents): { duty: Ce
   };
 }
 
+function computeWaTransferDuty(date: ISODate, dutiableValue: Cents): { duty: Cents; lines: ComputationLine[]; ruleVersion: string } {
+  const schedule = pickEffective(WA_TRANSFER_SCHEDULES, date);
+  if (!schedule) throw new RangeError(`Western Australian transfer duty is modelled for transactions from 2 July 2014; this contract is dated ${longDate(date)}.`);
+  const band = computeScheduledDuty(schedule, dutiableValue);
+  return {
+    duty: band.duty,
+    lines: [line("AU.WA.TRANSFER.BASE", `WA general rate (${band.band.label})`, band.duty, rateToText(band.band))],
+    ruleVersion: schedule.ruleVersion,
+  };
+}
+
+/**
+ * South Australia: the conveyance scale on the whole dutiable value, with no duty on qualifying (non-residential, non-primary-production)
+ * land. A mixed-use value is charged the residential share of the duty on the whole value, to the nearest cent, which reproduces RevenueSA
+ * Information Circular 103's worked example (A$62,634.55 of A$114,830).
+ */
+function computeSaTransferDuty(date: ISODate, dutiableValue: Cents, residentialValue: Cents): { duty: Cents; lines: ComputationLine[]; ruleVersion: string } {
+  const schedule = date >= SA_TRANSFER_FROM ? pickEffective(SA_TRANSFER_SCHEDULES, date) : undefined;
+  if (!schedule) throw new RangeError(`South Australian transfer duty is modelled for contracts from 1 July 2018, when duty on non-residential land ended; this contract is dated ${longDate(date)}.`);
+  if (residentialValue === 0) {
+    return {
+      duty: 0,
+      lines: [line("AU.SA.TRANSFER.QUALIFYING_LAND", "SA qualifying land: no duty", 0, "No duty on non-residential, non-primary-production land for contracts from 1 July 2018.")],
+      ruleVersion: `${schedule.ruleVersion}+${SA_QUALIFYING_LAND_RULE}`,
+    };
+  }
+  const whole = computeScheduledDuty(schedule, dutiableValue);
+  if (residentialValue >= dutiableValue) {
+    return {
+      duty: whole.duty,
+      lines: [line("AU.SA.TRANSFER.BASE", `SA conveyance rate (${whole.band.label})`, whole.duty, rateToText(whole.band))],
+      ruleVersion: schedule.ruleVersion,
+    };
+  }
+  const duty = mulRatio(whole.duty, residentialValue, dutiableValue);
+  return {
+    duty,
+    lines: [
+      line("AU.SA.TRANSFER.WHOLE_VALUE", `SA conveyance rate on the whole value (${whole.band.label})`, whole.duty, rateToText(whole.band)),
+      line("AU.SA.TRANSFER.RESIDENTIAL_SHARE", "Residential share of that duty (qualifying land pays none)", duty, "Apportioned by value, to the nearest cent."),
+    ],
+    ruleVersion: `${schedule.ruleVersion}+${SA_QUALIFYING_LAND_RULE}`,
+  };
+}
+
 function surchargeRate(state: AuState, date: ISODate): ForeignSurchargeRate | undefined {
   if (state === "NSW") return requireEffective(NSW_SURCHARGE_PURCHASER_RATES, date, "NSW surcharge purchaser duty");
   if (state === "VIC") return requireEffective(VIC_FOREIGN_SURCHARGE_RATES, date, "VIC foreign purchaser additional duty");
   if (state === "QLD") return requireEffective(QLD_FOREIGN_SURCHARGE_RATES, date, "QLD AFAD");
+  if (state === "WA") return pickEffective(WA_FOREIGN_SURCHARGE_RATES, date);
   return undefined;
 }
 
@@ -501,17 +605,28 @@ function computeBaseTransferDuty(state: AuState, date: ISODate, dutiableValue: C
   if (state === "NSW") return computeNswTransferDuty(date, dutiableValue, residentialValue);
   if (state === "VIC") return computeVicTransferDuty(date, dutiableValue);
   if (state === "QLD") return computeQldTransferDuty(date, dutiableValue);
+  if (state === "WA") return computeWaTransferDuty(date, dutiableValue);
+  if (state === "SA") return computeSaTransferDuty(date, dutiableValue, residentialValue);
   throw new RangeError(`Transfer duty is not modelled for ${state}.`);
 }
+
+const MODELLED_TRANSFER_STATES: readonly AuState[] = ["NSW", "VIC", "QLD", "WA", "SA"];
 
 export function computeTransferDuty(input: ComputeTransferDutyInput): ComputeTransferDutyResult {
   assertDate(input.contractDate, "contractDate");
   const dutiableValue = assertNonNegativeCents(input.dutiableValue, "dutiableValue");
-  if (!["NSW", "VIC", "QLD"].includes(input.state)) throw new RangeError(`Transfer duty is not modelled for ${input.state}.`);
+  if (!MODELLED_TRANSFER_STATES.includes(input.state)) throw new RangeError(`Transfer duty is not modelled for ${input.state}.`);
   const findings: Finding[] = [];
   const residentialDutiableValue = resolveResidentialComponent({ ...input, dutiableValue }, findings);
   const base = computeBaseTransferDuty(input.state, input.contractDate, dutiableValue, residentialDutiableValue);
   const surchargeBase = proportionalShare(residentialDutiableValue, foreignShareBps(input.purchaser));
+  if (input.state === "SA" && surchargeBase > 0) {
+    findings.push({
+      id: "AU_TRANSFER_DUTY.SA_FOREIGN_SURCHARGE_NOT_MODELLED",
+      severity: "WARNING",
+      message: "South Australia's foreign ownership surcharge on residential land is not modelled here; add it separately.",
+    });
+  }
   const foreignRate = surchargeBase > 0 ? surchargeRate(input.state, input.contractDate) : undefined;
   const foreignSurchargeDuty = foreignRate && surchargeBase > 0 ? mulBps(surchargeBase, foreignRate.rateBps) : 0;
   const totalDuty = base.duty + foreignSurchargeDuty;
@@ -798,5 +913,55 @@ export const RULES: RuleEntry[] = [
       { title: "Queensland Revenue Office | Calculating landholder duty", url: "https://qro.qld.gov.au/duties/investors/landholder/calculating/", retrieved: "2026-10-10", publisher: "Queensland Revenue Office" },
       { title: "Queensland Revenue Office | Additional foreign acquirer duty for landholder duty", url: "https://qro.qld.gov.au/duties/investors/landholder/afad/", retrieved: "2026-10-10", publisher: "Queensland Revenue Office" },
     ],
+  },
+  {
+    id: "au-transfer-duty.wa.general.2014-07-02",
+    domain: "AU_TRANSFER_DUTY",
+    title: "Western Australia transfer duty general rate",
+    summary: "WA's general rate is A$1.90 for every A$100 or part up to A$120,000, then A$2,280 plus A$2.85, A$3,135 plus A$3.80, A$11,115 plus A$4.75 and, above A$725,000, A$28,453 plus A$5.15 for every A$100 or part above the step. It applies to transactions from 2 July 2014 unless the Duties Act provides otherwise.",
+    effectiveFrom: "2014-07-02",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "WA Department of Treasury and Finance | Transfer duty assessment (rates of duty)", url: "https://www.wa.gov.au/organisation/department-of-treasury-and-finance/transfer-duty-assessment", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Western Australia" },
+    ],
+    notes: "Concessional, first home owner and off-the-plan rates, and WA landholder duty, are out of scope. Transactions before 2 July 2014 are not modelled.",
+  },
+  {
+    id: "au-transfer-duty.wa.foreign.2019-01-01",
+    domain: "AU_TRANSFER_DUTY",
+    title: "Western Australia foreign transfer duty",
+    summary: "Foreign persons acquiring residential property in WA pay an additional 7% of the dutiable value, for transactions from 1 January 2019.",
+    effectiveFrom: "2019-01-01",
+    confidence: "VERIFIED_SECONDARY",
+    sources: [
+      { title: "WA Government | About foreign buyers duty", url: "https://www.wa.gov.au/service/financial-management/taxation-and-duty/about-foreign-buyers-duty", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Western Australia" },
+      { title: "Parliament of Western Australia | Explanatory memorandum, Duties Amendment (Additional Duty for Foreign Persons) Bill 2018", url: "https://www.parliament.wa.gov.au/Parliament/Bills.nsf/95E120263B9BC354482582AA002D231D/$File/EM72-1.pdf", retrieved: "2026-10-19", publisher: "Parliament of Western Australia" },
+    ],
+    notes: "The 7% rate is on the WA Government page; the 1 January 2019 start is taken from the amending Bill's explanatory memorandum and secondary sources. Developer exemptions are not modelled.",
+  },
+  {
+    id: "au-transfer-duty.sa.general.2018-07-01",
+    domain: "AU_TRANSFER_DUTY",
+    title: "South Australia conveyance duty rates",
+    summary: "South Australian duty on a conveyance runs from A$1.00 for every A$100 or part up to A$12,000 to A$21,330 plus A$5.50 for every A$100 or part above A$500,000. Applied to contracts from 1 July 2018 on residential and primary-production land.",
+    effectiveFrom: SA_TRANSFER_FROM,
+    confidence: "VERIFIED_SECONDARY",
+    sources: [
+      { title: "RevenueSA | Rate of stamp duty", url: "https://www.revenuesa.sa.gov.au/stamp-duty/rate-of-stamp-duty", retrieved: "2026-10-19", publisher: "RevenueSA" },
+      { title: "RevenueSA | Information Circular 103 (worked example: A$2,200,000 gives A$114,830)", url: "https://www.revenuesa.sa.gov.au/resources/publications/information-circulars/information-circulars/ic_103/information-circular-103_21112022", retrieved: "2026-10-19", publisher: "RevenueSA" },
+    ],
+    notes: "RevenueSA publishes the current table only. Its December 2022 worked example uses the same rates, and secondary sources describe them as unchanged since before 2018, so they are applied from 1 July 2018. Earlier contracts, concessions and the foreign ownership surcharge are not modelled.",
+  },
+  {
+    id: "au-transfer-duty.sa.qualifying-land.2018-07-01",
+    domain: "AU_TRANSFER_DUTY",
+    title: "South Australia: no duty on qualifying (non-residential) land",
+    summary: "No stamp duty applies to a conveyance of non-residential, non-primary-production land (qualifying land) under a contract entered into on or after 1 July 2018. A mixed purchase is charged the residential share of the duty on the whole value, to the nearest cent, as in RevenueSA's worked example.",
+    effectiveFrom: SA_TRANSFER_FROM,
+    confidence: "VERIFIED",
+    sources: [
+      { title: "RevenueSA | Information Circular 103: stamp duty on qualifying land", url: "https://www.revenuesa.sa.gov.au/resources/publications/information-circulars/information-circulars/ic_103/information-circular-103_21112022", retrieved: "2026-10-19", publisher: "RevenueSA" },
+    ],
+    notes: "Stamp Duties Act 1923 s71DC. The 2015-2018 phase-out (one-third and two-thirds reductions) is not modelled; whether land is qualifying land follows the property kind in the profile.",
   },
 ];

@@ -57,9 +57,17 @@ test("annual tax view computes AU NSW/VIC/QLD and SG golden values, and flags un
 
   const wattle = propertyTaxView(data, "wattle", { now: NOW });
   const sa = wattle.rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
-  assert.equal(sa?.status, "not-modelled");
-  assert.equal(sa?.total, 0);
-  assert.match(sa?.basis ?? "", /South Australia/);
+  // RevenueSA 2025-26 general rates (Wattle is a listed public unit trust): A$32,005 + A$2.40 per A$100 or part above A$3,116,000.
+  assert.equal(sa?.status, "modelled");
+  assert.equal(sa?.total, 662_876_020);
+
+  const tasData = seedData();
+  const lakeside = tasData.propertyProfiles.find((entry) => entry.propertyId === "wattle-lakeside-marketplace")!;
+  Object.assign(lakeside, { auState: "TAS" });
+  const tas = propertyTaxView(tasData, "wattle", { now: NOW }).rows.find((row) => row.propertyId === "wattle-lakeside-marketplace");
+  assert.equal(tas?.status, "not-modelled");
+  assert.equal(tas?.total, 0);
+  assert.match(tas?.basis ?? "", /Tasmania/);
 
   const telok = propertyTaxView(data, "telok-ayer", { now: NOW });
   // IRAS non-residential rate is 10% of annual value: S$13,755,721.473 -> S$13,755,721.47.
@@ -101,8 +109,14 @@ test("ABSD entity case and not-modelled duties are excluded from totals", () => 
 
   const wattle = dutiesView(data, "wattle", { now: NOW });
   assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-coral-coast-central")?.totalDuty, 3902623350);
+  assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-banksia-plaza")?.totalDuty, 2689949985, "WA general rate on A$522,492,875");
   assert.equal(wattle.rows.find((candidate) => candidate.propertyId === "wattle-lakeside-marketplace")?.status, "not-modelled");
-  assert.equal(wattle.totals.totalDuty, 3902623350);
+  assert.equal(
+    wattle.rows.find((candidate) => candidate.propertyId === "wattle-wattle-grove-shopping-centre")?.basis,
+    "New South Wales transfer duty rates for a contract dated 1 Oct 2009 are not in the app (only later contracts are modelled); work it out separately.",
+    "the engine's missing-rate error is put into words",
+  );
+  assert.equal(wattle.totals.totalDuty, 3902623350 + 2689949985, "the unmodelled 2012 SA contract stays out of the total");
 });
 
 test("profile reducer enforces edit access, validates fields, ignores workflow locks, and audits successful changes", () => {
@@ -184,7 +198,8 @@ test("providers emit risks, compare sources and missed SG duty-deadline risks at
   const wattle = data.funds.find((fund) => fund.id === "wattle")!;
   const risks = ptaxProviders.risks?.(data, wattle, NOW) ?? [];
   assert.ok(risks.some((risk) => risk.title.includes("Wattle Grove Shopping Centre: payment overdue") && risk.area === "Land tax"));
-  assert.ok(risks.some((risk) => risk.title.includes("Lakeside Marketplace") && risk.area === "Land tax"));
+  assert.ok(!risks.some((risk) => risk.title.includes("Lakeside Marketplace") && risk.area === "Land tax"), "SA land tax is modelled and paid");
+  assert.ok(risks.some((risk) => risk.title === "Lakeside Marketplace: duty not calculated" && risk.severity === "note" && /21 May 2012/.test(risk.detail)), "its 2012 duty predates the modelled SA rates");
 
   const telok = data.funds.find((fund) => fund.id === "telok-ayer")!;
   const sgRisks = ptaxProviders.risks?.(data, telok, NOW) ?? [];

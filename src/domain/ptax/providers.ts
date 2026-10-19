@@ -2,6 +2,7 @@
 // and figures to compare (Compare). Leave a function out when the feature has nothing to add.
 import type { FeatureProviders } from "../providers.ts";
 import type { AppData, DeadlineRow, Fund } from "../types.ts";
+import { dateLabel } from "../format.ts";
 import { dutiesView, futureDutyDeadlineRows, missedDutyDeadlineRows, propertyTaxView, TAX_WORKSPACE } from "./index.ts";
 
 export const ptaxProviders: FeatureProviders = {
@@ -44,7 +45,7 @@ export const ptaxProviders: FeatureProviders = {
       ...duties.rows
         .filter((row) => row.status !== "modelled")
         .map((row) => ({ id: `ptax-duty-${row.propertyId}`, fundId: fund.id, severity: row.status === "missing-data" ? "exception" as const : "note" as const, area: "Duties", title: `${row.propertyName}: duty not calculated`, detail: row.basis, workspace: TAX_WORKSPACE })),
-      ...missedDutyDeadlineRows(data, fund, now).map((row) => ({ id: `ptax-duty-deadline-${row.property.id}`, fundId: fund.id, severity: "note" as const, area: "Duties", title: `${row.property.name}: stamp duty deadline has passed`, detail: `Engine stamping deadline was ${row.dueDate}. Confirm duty was paid and evidence is filed.`, workspace: TAX_WORKSPACE })),
+      ...missedDutyDeadlineRows(data, fund, now).map((row) => ({ id: `ptax-duty-deadline-${row.property.id}`, fundId: fund.id, severity: "note" as const, area: "Duties", title: `${row.property.name}: stamp duty deadline has passed`, detail: `The stamping deadline was ${dateLabel(row.dueDate)}. Confirm duty was paid and the evidence is filed.`, workspace: TAX_WORKSPACE })),
     ];
   },
   compareSources(data: AppData, fund: Fund, now: Date) {

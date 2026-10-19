@@ -4,7 +4,7 @@ import { AU_LAND_TAX_OWNER_KINDS } from "../../../engine/au/landTax.ts";
 import { AU_TRANSFER_DUTY_PROPERTY_KINDS, AU_TRANSFER_PURCHASER_KINDS } from "../../../engine/au/transferDuty.ts";
 import { ABSD_BUYER_KINDS, STAMP_DUTY_PROPERTY_KINDS } from "../../../engine/stampDuty.ts";
 import { PROPERTY_TAX_USAGES } from "../../../engine/propertyTax.ts";
-import { AU_LAND_TAX_ASSUMPTION, dutiesView, profileRows, propertyTaxKpis, propertyTaxView } from "../../../domain/ptax/index.ts";
+import { AU_LAND_TAX_ASSUMPTION, dutiesView, profileRows, propertyTaxKpis, propertyTaxView, surchargeColumnLabel } from "../../../domain/ptax/index.ts";
 import type { AnnualTaxRow, DutyRow, PtaxPaymentKind, PtaxProfilePatch } from "../../../domain/ptax/types.ts";
 import type { Fund, Property } from "../../../domain/types.ts";
 import { dateLabel, money, toISODate } from "../../../domain/format.ts";
@@ -24,9 +24,8 @@ function options<T extends readonly { id: string; label: string }[]>(items: T): 
 function BasisCell({ row }: { row: Pick<AnnualTaxRow | DutyRow, "basis" | "basisTitle" | "ruleIds" | "status"> }) {
   if (row.status !== "modelled") return <span>{row.basis}</span>;
   return (
-    <span className="ptax-basis">
+    <span className="ptax-basis" title={`Rules: ${row.ruleIds.join("; ")}`}>
       <span>{row.basisTitle}</span>
-      <small>{row.ruleIds.join("; ")}</small>
       <small>{row.basis}</small>
     </span>
   );
@@ -89,7 +88,7 @@ function AnnualPanel({ fund, canRecord }: { fund: Fund; canRecord: boolean }) {
               <th scope="col" className="num">{fund.market === "AU" ? "Land value" : "Annual value"}</th>
               <th scope="col">Rate basis</th>
               <th scope="col" className="num">Tax</th>
-              <th scope="col" className="num">Surcharge / rebate</th>
+              <th scope="col" className="num">{surchargeColumnLabel(fund.market)}</th>
               <th scope="col" className="num">Total</th>
               <th scope="col">Due</th>
               <th scope="col">Status</th>
@@ -333,7 +332,7 @@ export function PropertyTaxesBody({ fund }: { fund: Fund }) {
       <KpiStrip label="Property taxes summary">
         <Kpi label="Total annual tax this year" value={money(kpis.annualTax, fund.currency)} sub={fund.market === "AU" ? "Land tax allocation where modelled" : "Property tax for the calendar year"} />
         <Kpi label="Total duty on acquisitions" value={kpis.dutyModelled === 0 ? "Not modelled" : money(kpis.dutyPaid, fund.currency)} sub={`${kpis.dutyModelled} of ${kpis.dutyTotal} properties modelled${kpis.dutyNotModelled ? ` (${kpis.dutyNotModelled} not modelled)` : ""}`} />
-        <Kpi label="Properties needing data" value={String(kpis.needsData)} tone={kpis.needsData > 0 ? "warn" : "good"} sub="Missing data or unsupported state" />
+        <Kpi label="Not calculated" value={String(kpis.needsData)} tone={kpis.needsData > 0 ? "warn" : "good"} sub="Taxes or duties with missing data or no modelled rates" />
       </KpiStrip>
       <Panel title="Property taxes and duties">
         <p className="ptax-note">Property details can be updated in any workflow status by anyone who can edit this fund.</p>

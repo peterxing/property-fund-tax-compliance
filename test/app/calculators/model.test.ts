@@ -72,6 +72,35 @@ test("calculator registry has the expected coverage", () => {
   assert.equal(cases.length, CALCULATORS.length);
 });
 
+test("the duty and land tax calculators offer every modelled state, and WA and SA cite their own rules", () => {
+  const stateOptions = (id: string) => calculatorById(id).fields.find((field) => field.key === "state")?.options?.map((option) => option.value);
+  assert.deepEqual(stateOptions("au-transfer-duty"), ["NSW", "VIC", "QLD", "WA", "SA"]);
+  assert.deepEqual(stateOptions("au-land-tax"), ["NSW", "VIC", "QLD", "WA", "SA"]);
+
+  const landTax = calculatorById("au-land-tax");
+  const wa = landTax.compute({ ...defaultValues(landTax), state: "WA", landValue: 400_000_00 });
+  assert.equal(wa.ok, true);
+  if (wa.ok) {
+    assert.equal(wa.lines.find((line) => line.label === "General land tax")?.value, "A$300");
+    assert.equal(wa.lines.find((line) => line.label === "Metropolitan Region Improvement Tax")?.value, "A$140");
+    assert.deepEqual(rulesForResult(landTax, wa).map((rule) => rule.id), ["au-land-tax.wa.general.current", "au-land-tax.wa.mrit.current"]);
+  }
+  // A listed public unit trust in SA is assessed at the general rates; untick "trust rates apply" to see them.
+  const trustRates = landTax.compute({ ...defaultValues(landTax), state: "SA", assessmentYear: 2026, landValue: 2_000_000_00 });
+  const generalRates = landTax.compute({ ...defaultValues(landTax), state: "SA", assessmentYear: 2026, landValue: 2_000_000_00, trustRates: false });
+  assert.ok(trustRates.ok && generalRates.ok);
+  if (trustRates.ok && generalRates.ok) {
+    assert.equal(trustRates.lines.find((line) => line.label === "Total tax")?.value, "A$19,631");
+    assert.equal(generalRates.lines.find((line) => line.label === "Total tax")?.value, "A$9,685");
+    assert.deepEqual(rulesForResult(landTax, generalRates).map((rule) => rule.id), ["au-land-tax.sa.general"]);
+  }
+
+  const duty = calculatorById("au-transfer-duty");
+  const sa = duty.compute({ ...defaultValues(duty), state: "SA", contractDate: "2022-12-10", value: 2_200_000_00, propertyKind: "RESIDENTIAL" });
+  assert.ok(sa.ok);
+  if (sa.ok) assert.equal(sa.lines.find((line) => line.label === "Total duty")?.value, "A$114,830");
+});
+
 describe("calculator worked examples", () => {
   for (const item of cases) {
     it(`${item.id} computes the hand-checked example and rejects invalid input`, () => {

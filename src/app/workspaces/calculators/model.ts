@@ -3,6 +3,8 @@ import type { CsvModel, Currency } from "../../../domain/types.ts";
 import type { ComputationLine, Finding } from "../../../engine/types.ts";
 import { computeTransferDuty, computeLandholderDuty, RULES as AU_TRANSFER_RULES } from "../../../engine/au/transferDuty.ts";
 import { computeLandTax, RULES as AU_LAND_TAX_RULES } from "../../../engine/au/landTax.ts";
+import { AU_MODELLED_LAND_TAX_STATES, AU_MODELLED_TRANSFER_DUTY_STATES } from "../../../engine/au/stateCatalogue.ts";
+import type { AuState } from "../../../engine/au/types.ts";
 import { computeCgt, computeForeignResidentCgtWithholding, RULES as AU_CGT_RULES } from "../../../engine/au/cgt.ts";
 import { computeMitWithholding, RULES as AU_MIT_RULES } from "../../../engine/au/mitWithholding.ts";
 import { computeDepreciationSchedule, RULES as AU_DEPRECIATION_RULES } from "../../../engine/au/depreciation.ts";
@@ -95,7 +97,7 @@ export interface CalculatorDefinition {
 const AUD: Currency = "AUD";
 const SGD: Currency = "SGD";
 const MAX_CALCULATOR_AMOUNT = Number.MAX_SAFE_INTEGER;
-const auStates = ["NSW", "VIC", "QLD"].map((s) => ({ value: s, label: s }));
+const auStates = (states: readonly { id: string }[]) => states.map((state) => ({ value: state.id, label: state.id }));
 const bool = (v: FieldValue): boolean => v === true;
 const str = (values: CalculatorValues, key: string): string => String(values[key] ?? "");
 const num = (values: CalculatorValues, key: string): number => Number(values[key] ?? 0);
@@ -199,6 +201,10 @@ function transferDutyRuleIds(ruleVersion: string | undefined): string[] {
     if (id.startsWith("qld.transfer.")) return "au-transfer-duty.qld.general.current";
     if (id.startsWith("qld.surcharge.")) return "au-transfer-duty.qld.afad.2016-10-01";
     if (id.startsWith("qld.landholder.")) return "au-transfer-duty.qld.landholder.current";
+    if (id.startsWith("wa.transfer.")) return "au-transfer-duty.wa.general.2014-07-02";
+    if (id.startsWith("wa.surcharge.")) return "au-transfer-duty.wa.foreign.2019-01-01";
+    if (id.startsWith("sa.transfer.")) return "au-transfer-duty.sa.general.2018-07-01";
+    if (id.startsWith("sa.qualifying-land.")) return "au-transfer-duty.sa.qualifying-land.2018-07-01";
     return id;
   });
 }
@@ -212,6 +218,10 @@ function landTaxRuleIds(ruleVersion: string | undefined): string[] {
     if (id.startsWith("vic.land-tax.general.")) return "au-land-tax.vic.general.2022-01-01";
     if (id.startsWith("vic.land-tax.trust.") || id.startsWith("vic.land-tax.absentee.")) return "au-land-tax.vic.trust.current";
     if (id.startsWith("qld.land-tax.")) return "au-land-tax.qld.current";
+    if (id.startsWith("wa.land-tax.general.")) return "au-land-tax.wa.general.current";
+    if (id.startsWith("wa.land-tax.mrit.")) return "au-land-tax.wa.mrit.current";
+    if (id.startsWith("sa.land-tax.general.")) return "au-land-tax.sa.general";
+    if (id.startsWith("sa.land-tax.trust.")) return "au-land-tax.sa.trust";
     return id;
   });
 }
@@ -267,9 +277,10 @@ export function calculatorCsv(definition: CalculatorDefinition, result: Calculat
 }
 
 const commonFields = {
-  state: { key: "state", label: "State", kind: "select", defaultValue: "NSW", options: auStates } satisfies CalculatorField,
   contractDate: { key: "contractDate", label: "Contract date", kind: "date", defaultValue: "2026-08-15" } satisfies CalculatorField,
 };
+const dutyState = { key: "state", label: "State", kind: "select", defaultValue: "NSW", options: auStates(AU_MODELLED_TRANSFER_DUTY_STATES) } satisfies CalculatorField;
+const landTaxState = { key: "state", label: "State", kind: "select", defaultValue: "NSW", options: auStates(AU_MODELLED_LAND_TAX_STATES) } satisfies CalculatorField;
 
 const DEFINITIONS: readonly CalculatorDefinition[] = [
   {
@@ -280,7 +291,7 @@ const DEFINITIONS: readonly CalculatorDefinition[] = [
     rules: AU_TRANSFER_RULES,
     fields: [
       { key: "mode", label: "Mode", kind: "select", defaultValue: "transfer", options: [{ value: "transfer", label: "Transfer duty" }, { value: "landholder", label: "Landholder duty" }] },
-      commonFields.state,
+      dutyState,
       commonFields.contractDate,
       { key: "value", label: "Dutiable / landholdings value", kind: "money", currency: AUD, defaultValue: 12_500_000_00, min: 0 },
       { key: "propertyKind", label: "Property kind", kind: "select", defaultValue: "RESIDENTIAL", options: [{ value: "RESIDENTIAL", label: "Residential" }, { value: "NON_RESIDENTIAL", label: "Non-residential" }, { value: "MIXED", label: "Mixed-use" }] },
@@ -291,7 +302,7 @@ const DEFINITIONS: readonly CalculatorDefinition[] = [
     compute: (values) => safe(() => {
       if (str(values, "mode") === "landholder") {
         const result = computeLandholderDuty({
-          state: str(values, "state") as "NSW" | "VIC" | "QLD",
+          state: str(values, "state") as AuState,
           acquisitionDate: str(values, "contractDate"),
           landholderKind: "PRIVATE_UNIT_TRUST",
           landholdingsValue: cents(values, "value"),
@@ -307,7 +318,7 @@ const DEFINITIONS: readonly CalculatorDefinition[] = [
         ], result.findings, result.notes, result.lines.map((item) => formatLine(item, AUD)), { headlineLabel: "Total landholder duty", headlineValue: money(result.totalDuty, AUD, 0), ruleIds: transferDutyRuleIds(result.ruleVersion) });
       }
       const result = computeTransferDuty({
-        state: str(values, "state") as "NSW" | "VIC" | "QLD",
+        state: str(values, "state") as AuState,
         contractDate: str(values, "contractDate"),
         dutiableValue: cents(values, "value"),
         propertyKind: str(values, "propertyKind") as "RESIDENTIAL" | "NON_RESIDENTIAL" | "MIXED",
@@ -330,23 +341,24 @@ const DEFINITIONS: readonly CalculatorDefinition[] = [
     purpose: "Calculate state land tax and foreign or trust surcharges for one landholding.",
     rules: AU_LAND_TAX_RULES,
     fields: [
-      commonFields.state,
+      landTaxState,
       { key: "assessmentYear", label: "Assessment year", kind: "number", defaultValue: 2026, min: 2022, step: 1 },
       { key: "landValue", label: "Taxable land value", kind: "money", currency: AUD, defaultValue: 8_000_000_00, min: 0 },
       { key: "ownerKind", label: "Owner kind", kind: "select", defaultValue: "TRUST", options: [{ value: "INDIVIDUAL", label: "Individual" }, { value: "COMPANY", label: "Company" }, { value: "TRUST", label: "Trust" }, { value: "SPECIAL_TRUST", label: "Special trust" }] },
+      { key: "trustRates", label: "Trust surcharge or trust rates apply (VIC, SA)", kind: "checkbox", defaultValue: true },
       { key: "foreign", label: "Foreign / absentee owner", kind: "checkbox", defaultValue: false },
     ],
     compute: (values) => safe(() => {
       const result = computeLandTax({
-        state: str(values, "state") as "NSW" | "VIC" | "QLD",
+        state: str(values, "state") as AuState,
         assessmentYear: num(values, "assessmentYear"),
         holdings: [{ id: "property", taxableLandValue: cents(values, "landValue"), residential: true }],
-        owner: { kind: str(values, "ownerKind") as "INDIVIDUAL" | "COMPANY" | "TRUST" | "SPECIAL_TRUST", foreign: bool(values.foreign), absentee: bool(values.foreign) },
+        owner: { kind: str(values, "ownerKind") as "INDIVIDUAL" | "COMPANY" | "TRUST" | "SPECIAL_TRUST", foreign: bool(values.foreign), absentee: bool(values.foreign), trustSurchargeApplies: values.trustRates !== false },
       });
       return asResult(`Total land tax ${money(result.totalTax, AUD, 0)} for ${result.assessmentYear}.`, [
         line("Taxable land value", money(result.totalTaxableLandValue, AUD, 0)),
         line("General land tax", money(result.generalTax, AUD, 0)),
-        line("Surcharge tax", money(result.surchargeTax, AUD, 0)),
+        line(result.state === "WA" ? "Metropolitan Region Improvement Tax" : "Surcharge tax", money(result.surchargeTax, AUD, 0)),
         line("Total tax", money(result.totalTax, AUD, 0)),
       ], result.findings, result.notes, result.lines.map((item) => formatLine(item, AUD)), { headlineLabel: "Total land tax", headlineValue: money(result.totalTax, AUD, 0), ruleIds: landTaxRuleIds(result.ruleVersion) });
     }),
