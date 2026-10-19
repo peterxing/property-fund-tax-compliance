@@ -15,7 +15,8 @@
     "test:engine": "node --disable-warning=ExperimentalWarning --test \"test/engine/**/*.test.ts\"",
     "test:domain": "node --disable-warning=ExperimentalWarning --test \"test/domain/**/*.test.ts\"",
     "test:ui": "node --disable-warning=ExperimentalWarning --import ./scripts/register-esbuild.mjs --test \"test/ui/**/*.test.tsx\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "docs:rules": "node --disable-warning=ExperimentalWarning scripts/docs/write-docs.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.0",
