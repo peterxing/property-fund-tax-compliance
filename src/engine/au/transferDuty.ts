@@ -1,11 +1,23 @@
 import type { ISODate } from "../dates.ts";
-import { parseISO } from "../dates.ts";
 import type { Cents } from "../money.ts";
-import { assertCents, floorToDollar, mulBps, mulRatio } from "../money.ts";
+import { floorToDollar, mulBps, mulRatio } from "../money.ts";
 import type { Effective, RuleEntry } from "../rules.ts";
 import { ENGINE_DISCLAIMER_AU, pickEffective, requireEffective } from "../rules.ts";
 import type { ComputationLine, Finding } from "../types.ts";
 import type { AuState } from "./types.ts";
+import {
+  assertBps,
+  assertDate,
+  assertNonNegativeCents,
+  computeScheduledDuty,
+  longDate,
+  line,
+  proportionalShare,
+  rateToText,
+  type ForeignSurchargeRate,
+  type TransferSchedule,
+} from "./dutyCommon.ts";
+import { TERRITORY_TRANSFER_RULES, TERRITORY_TRANSFER_STATES, computeTerritoryTransferDuty, territorySurchargeRate } from "./transferDutyTerritories.ts";
 
 export type AuTransferDutyPropertyKind = "RESIDENTIAL" | "NON_RESIDENTIAL" | "MIXED";
 export type AuTransferPurchaserKind = "INDIVIDUAL" | "COMPANY" | "TRUST" | "PARTNERSHIP";
@@ -88,23 +100,6 @@ export interface ComputeLandholderDutyResult {
   ruleVersion: string;
 }
 
-interface DutyBand {
-  from: Cents;
-  to?: Cents;
-  baseDuty: Cents;
-  excessFrom: Cents;
-  rateBps?: number;
-  ratePer100?: Cents;
-  appliesToWholeValue?: boolean;
-  label: string;
-}
-
-interface TransferSchedule {
-  ruleVersion: string;
-  minimumDuty: Cents;
-  bands: readonly DutyBand[];
-}
-
 interface NswPremiumSchedule {
   ruleVersion: string;
   threshold: Cents;
@@ -115,86 +110,19 @@ interface NswPremiumSchedule {
 interface LandholderRule {
   ruleVersion: string;
   thresholdBpsByKind: Partial<Record<AuLandholderKind, number>>;
-  publicChargeMode: "FULL_VALUE" | "TEN_PERCENT_OF_FULL_DUTY";
+  /** The jurisdiction's landholder test: an entity whose land holdings in the State are worth less than this is not a landholder, so no duty. */
+  minimumLandholdingsValue?: Cents;
+  dutiableLandValueMode?: "ALL_LAND" | "RESIDENTIAL_LAND";
+  /** How a public/listed landholder acquisition is charged. INTEREST_SHARE charges it like any other landholder: the general rate on the acquirer's share. */
+  publicChargeMode: "FULL_VALUE" | "TEN_PERCENT_OF_FULL_DUTY" | "INTEREST_SHARE";
   publicChargeFrom?: ISODate;
-}
-
-interface ForeignSurchargeRate {
-  ruleVersion: string;
-  rateBps: number;
-}
-
-function dollars(cents: Cents): string {
-  return `A$${(cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/** "21 May 2012", for messages a person reads. */
-function longDate(date: ISODate): string {
-  const { y, m, d } = parseISO(date);
-  return `${d} ${MONTHS[m - 1]} ${y}`;
-}
-
-function assertDate(date: ISODate, label: string): ISODate {
-  parseISO(date);
-  return date;
-}
-
-function assertNonNegativeCents(value: number, label: string): Cents {
-  const cents = assertCents(value, label);
-  if (cents < 0) throw new RangeError(`${label} cannot be negative.`);
-  return cents;
-}
-
-function assertBps(value: number, label: string): number {
-  if (!Number.isInteger(value) || value < 0 || value > 10_000) throw new RangeError(`${label} must be an integer between 0 and 10,000.`);
-  return value;
-}
-
-function proportionalShare(amount: Cents, bps: number): Cents {
-  return mulRatio(amount, assertBps(bps, "share"), 10_000);
-}
-
-function line(code: string, label: string, amount: Cents, note?: string, indent = 0): ComputationLine {
-  return { code, label, amount, kind: "AMOUNT", source: "RULE", note, indent };
-}
-
-function rateToText(band: DutyBand): string {
-  if (band.ratePer100 !== undefined) return `${dollars(band.ratePer100)} per A$100 or part`;
-  if (band.rateBps !== undefined) return `${band.rateBps / 100}%`;
-  return "0%";
-}
-
-function applyDutyBand(value: Cents, band: DutyBand): Cents {
-  if (value <= band.excessFrom) return band.appliesToWholeValue ? applyRate(value, band) : band.baseDuty;
-  const base = band.baseDuty;
-  if (band.appliesToWholeValue) return applyRate(value, band);
-  if (band.ratePer100 !== undefined) {
-    const increments = Math.ceil((value - band.excessFrom) / 10_000);
-    return base + increments * band.ratePer100;
-  }
-  return base + applyRate(value - band.excessFrom, band);
-}
-
-function applyRate(value: Cents, band: DutyBand): Cents {
-  if (band.rateBps !== undefined) return mulBps(value, band.rateBps);
-  if (band.ratePer100 !== undefined) return Math.ceil(value / 10_000) * band.ratePer100;
-  return 0;
-}
-
-function findBand(schedule: TransferSchedule, value: Cents): DutyBand {
-  const band = schedule.bands.find((candidate) => value >= candidate.from && (candidate.to === undefined || value <= candidate.to));
-  if (!band) throw new RangeError(`No duty band covers ${value}.`);
-  return band;
-}
-
-function computeScheduledDuty(schedule: TransferSchedule, value: Cents, opts: { floorWholeDollar?: boolean } = {}): { duty: Cents; band: DutyBand } {
-  const band = findBand(schedule, value);
-  let duty = applyDutyBand(value, band);
-  if (opts.floorWholeDollar) duty = floorToDollar(duty);
-  if (value > 0 && duty < schedule.minimumDuty) duty = schedule.minimumDuty;
-  return { duty, band };
+  /**
+   * Kinds the jurisdiction charges as a trust acquisition rather than under its landholder provisions: any interest acquired is dutiable,
+   * at transfer duty rates on that share of the land, with no landholding-value test and no significant-interest threshold.
+   */
+  trustAcquisitionKinds?: readonly AuLandholderKind[];
+  /** Kinds the engine does not model in this jurisdiction, with the reason shown to the user. */
+  notModelledKinds?: Partial<Record<AuLandholderKind, string>>;
 }
 
 function resolveResidentialComponent(input: ComputeTransferDutyInput, findings: Finding[]): Cents {
@@ -428,9 +356,9 @@ const WA_FOREIGN_SURCHARGE_RATES: readonly Effective<ForeignSurchargeRate>[] = [
 const SA_TRANSFER_FROM = "2018-07-01";
 const SA_TRANSFER_SCHEDULES: readonly Effective<TransferSchedule>[] = [
   {
-    from: SA_TRANSFER_FROM,
+    from: "2002-09-05",
     value: {
-      ruleVersion: "sa.transfer.2018-07-01",
+      ruleVersion: "sa.transfer.2002-09-05",
       minimumDuty: 0,
       bands: [
         { from: 0, to: 1_200_000, baseDuty: 0, excessFrom: 0, ratePer100: 100, label: "Not more than A$12,000" },
@@ -447,12 +375,19 @@ const SA_TRANSFER_SCHEDULES: readonly Effective<TransferSchedule>[] = [
   },
 ];
 const SA_QUALIFYING_LAND_RULE = "sa.qualifying-land.2018-07-01";
+const SA_QUALIFYING_LAND_PHASEOUT_RULE = "sa.qualifying-land.phaseout.2015-12-07";
+
+const SA_FOREIGN_SURCHARGE_RATES: readonly Effective<ForeignSurchargeRate>[] = [
+  { from: "2018-01-01", value: { ruleVersion: "sa.surcharge.2018-01-01", rateBps: 700 } },
+];
 
 const NSW_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
   {
     from: "2024-02-01",
     value: {
       ruleVersion: "nsw.landholder.2024-02-01",
+      // Duties Act 1997 (NSW) s 146: a landholder holds NSW land with an unencumbered value of A$2m or more.
+      minimumLandholdingsValue: 200_000_000,
       thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 2000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
       publicChargeMode: "FULL_VALUE",
       publicChargeFrom: "2023-07-01",
@@ -463,6 +398,7 @@ const NSW_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
     to: "2024-01-31",
     value: {
       ruleVersion: "nsw.landholder.2023-07-01",
+      minimumLandholdingsValue: 200_000_000,
       thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 5000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
       publicChargeMode: "FULL_VALUE",
       publicChargeFrom: "2023-07-01",
@@ -475,6 +411,8 @@ const VIC_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
     from: "2021-07-01",
     value: {
       ruleVersion: "vic.landholder.2021-07-01",
+      // Duties Act 2000 (Vic): a landholder holds Victorian land worth A$1m or more; s 89 phases duty in up to A$2m.
+      minimumLandholdingsValue: 100_000_000,
       thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 2000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
       publicChargeMode: "TEN_PERCENT_OF_FULL_DUTY",
     },
@@ -484,6 +422,7 @@ const VIC_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
     to: "2021-06-30",
     value: {
       ruleVersion: "vic.landholder.2008-05-06",
+      minimumLandholdingsValue: 100_000_000,
       thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 2000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
       publicChargeMode: "TEN_PERCENT_OF_FULL_DUTY",
     },
@@ -495,8 +434,51 @@ const QLD_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
     from: "2011-07-01",
     value: {
       ruleVersion: "qld.landholder.2011-07-01",
+      // Duties Act 2001 (Qld): a landholder is a corporation or listed unit trust with Queensland land-holdings of A$2m or more.
+      minimumLandholdingsValue: 200_000_000,
       thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 5000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
       publicChargeMode: "TEN_PERCENT_OF_FULL_DUTY",
+      // Units in an unlisted unit trust are trust interests (Duties Act 2001 (Qld) ss 49-84), not landholder interests.
+      trustAcquisitionKinds: ["PRIVATE_UNIT_TRUST"],
+      notModelledKinds: {
+        WHOLESALE_UNIT_TRUST: "Queensland treats units in an unlisted wholesale unit trust under its trust acquisition and public unit trust rules, which this engine does not model.",
+      },
+    },
+  },
+];
+
+const WA_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
+  {
+    from: "2008-07-01",
+    value: {
+      ruleVersion: "wa.landholder.2008-07-01",
+      minimumLandholdingsValue: 200_000_000,
+      thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 5000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
+      dutiableLandValueMode: "ALL_LAND",
+      publicChargeMode: "INTEREST_SHARE",
+    },
+  },
+];
+
+const SA_LANDHOLDER_RULES: readonly Effective<LandholderRule>[] = [
+  {
+    from: SA_TRANSFER_FROM,
+    value: {
+      ruleVersion: "sa.landholder.2018-07-01",
+      thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 5000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
+      dutiableLandValueMode: "RESIDENTIAL_LAND",
+      publicChargeMode: "FULL_VALUE",
+    },
+  },
+  {
+    from: "2002-09-05",
+    to: "2018-06-30",
+    value: {
+      ruleVersion: "sa.landholder.2002-09-05",
+      minimumLandholdingsValue: 100_000_000,
+      thresholdBpsByKind: { PRIVATE_COMPANY: 5000, PRIVATE_UNIT_TRUST: 5000, WHOLESALE_UNIT_TRUST: 5000, PUBLIC_LANDHOLDER: 9000 },
+      dutiableLandValueMode: "ALL_LAND",
+      publicChargeMode: "FULL_VALUE",
     },
   },
 ];
@@ -565,9 +547,22 @@ function computeWaTransferDuty(date: ISODate, dutiableValue: Cents): { duty: Cen
  * Information Circular 103's worked example (A$62,634.55 of A$114,830).
  */
 function computeSaTransferDuty(date: ISODate, dutiableValue: Cents, residentialValue: Cents): { duty: Cents; lines: ComputationLine[]; ruleVersion: string } {
-  const schedule = date >= SA_TRANSFER_FROM ? pickEffective(SA_TRANSFER_SCHEDULES, date) : undefined;
-  if (!schedule) throw new RangeError(`South Australian transfer duty is modelled for contracts from 1 July 2018, when duty on non-residential land ended; this contract is dated ${longDate(date)}.`);
+  const schedule = pickEffective(SA_TRANSFER_SCHEDULES, date);
+  if (!schedule) throw new RangeError(`South Australian transfer duty is modelled for contracts from 5 September 2002; this contract is dated ${longDate(date)}.`);
+  const qualifyingPayableNumerator = date >= SA_TRANSFER_FROM ? 0 : date >= "2017-07-01" ? 1 : date >= "2015-12-07" ? 2 : 3;
   if (residentialValue === 0) {
+    if (qualifyingPayableNumerator > 0) {
+      const whole = computeScheduledDuty(schedule, dutiableValue);
+      const duty = mulRatio(whole.duty, qualifyingPayableNumerator, 3);
+      return {
+        duty,
+        lines: [
+          line("AU.SA.TRANSFER.BASE", `SA conveyance rate (${whole.band.label})`, whole.duty, rateToText(whole.band)),
+          line("AU.SA.TRANSFER.QUALIFYING_LAND_PHASEOUT", "SA qualifying land phase-out", duty, qualifyingPayableNumerator === 3 ? "No reduction applies to contracts on or before 6 December 2015." : `${qualifyingPayableNumerator}/3 of the ordinary duty remains payable for this contract date.`),
+        ],
+        ruleVersion: `${schedule.ruleVersion}+${SA_QUALIFYING_LAND_PHASEOUT_RULE}`,
+      };
+    }
     return {
       duty: 0,
       lines: [line("AU.SA.TRANSFER.QUALIFYING_LAND", "SA qualifying land: no duty", 0, "No duty on non-residential, non-primary-production land for contracts from 1 July 2018.")],
@@ -582,14 +577,23 @@ function computeSaTransferDuty(date: ISODate, dutiableValue: Cents, residentialV
       ruleVersion: schedule.ruleVersion,
     };
   }
-  const duty = mulRatio(whole.duty, residentialValue, dutiableValue);
+  const residentialDuty = mulRatio(whole.duty, residentialValue, dutiableValue);
+  const qualifyingDutyBeforeReduction = whole.duty - residentialDuty;
+  const qualifyingDuty = mulRatio(qualifyingDutyBeforeReduction, qualifyingPayableNumerator, 3);
+  const duty = residentialDuty + qualifyingDuty;
   return {
     duty,
     lines: [
       line("AU.SA.TRANSFER.WHOLE_VALUE", `SA conveyance rate on the whole value (${whole.band.label})`, whole.duty, rateToText(whole.band)),
-      line("AU.SA.TRANSFER.RESIDENTIAL_SHARE", "Residential share of that duty (qualifying land pays none)", duty, "Apportioned by value, to the nearest cent."),
+      line("AU.SA.TRANSFER.RESIDENTIAL_SHARE", "Residential share of that duty", residentialDuty, "Apportioned by value, to the nearest cent."),
+      line(
+        qualifyingPayableNumerator === 0 ? "AU.SA.TRANSFER.QUALIFYING_LAND" : "AU.SA.TRANSFER.QUALIFYING_LAND_PHASEOUT",
+        qualifyingPayableNumerator === 0 ? "Qualifying land reduction" : "Qualifying land phase-out",
+        qualifyingDuty,
+        qualifyingPayableNumerator === 0 ? "No duty on the non-residential qualifying-land share." : `${qualifyingPayableNumerator}/3 of the ordinary duty remains payable on the qualifying-land share.`,
+      ),
     ],
-    ruleVersion: `${schedule.ruleVersion}+${SA_QUALIFYING_LAND_RULE}`,
+    ruleVersion: `${schedule.ruleVersion}+${qualifyingPayableNumerator === 0 ? SA_QUALIFYING_LAND_RULE : SA_QUALIFYING_LAND_PHASEOUT_RULE}`,
   };
 }
 
@@ -598,6 +602,8 @@ function surchargeRate(state: AuState, date: ISODate): ForeignSurchargeRate | un
   if (state === "VIC") return requireEffective(VIC_FOREIGN_SURCHARGE_RATES, date, "VIC foreign purchaser additional duty");
   if (state === "QLD") return requireEffective(QLD_FOREIGN_SURCHARGE_RATES, date, "QLD AFAD");
   if (state === "WA") return pickEffective(WA_FOREIGN_SURCHARGE_RATES, date);
+  if (state === "SA") return pickEffective(SA_FOREIGN_SURCHARGE_RATES, date);
+  if (state === "TAS" || state === "ACT" || state === "NT") return territorySurchargeRate(state, date);
   return undefined;
 }
 
@@ -607,10 +613,11 @@ function computeBaseTransferDuty(state: AuState, date: ISODate, dutiableValue: C
   if (state === "QLD") return computeQldTransferDuty(date, dutiableValue);
   if (state === "WA") return computeWaTransferDuty(date, dutiableValue);
   if (state === "SA") return computeSaTransferDuty(date, dutiableValue, residentialValue);
+  if (state === "TAS" || state === "ACT" || state === "NT") return computeTerritoryTransferDuty(state, date, dutiableValue, residentialValue);
   throw new RangeError(`Transfer duty is not modelled for ${state}.`);
 }
 
-const MODELLED_TRANSFER_STATES: readonly AuState[] = ["NSW", "VIC", "QLD", "WA", "SA"];
+const MODELLED_TRANSFER_STATES: readonly AuState[] = ["NSW", "VIC", "QLD", "WA", "SA", ...TERRITORY_TRANSFER_STATES];
 
 export function computeTransferDuty(input: ComputeTransferDutyInput): ComputeTransferDutyResult {
   assertDate(input.contractDate, "contractDate");
@@ -620,13 +627,6 @@ export function computeTransferDuty(input: ComputeTransferDutyInput): ComputeTra
   const residentialDutiableValue = resolveResidentialComponent({ ...input, dutiableValue }, findings);
   const base = computeBaseTransferDuty(input.state, input.contractDate, dutiableValue, residentialDutiableValue);
   const surchargeBase = proportionalShare(residentialDutiableValue, foreignShareBps(input.purchaser));
-  if (input.state === "SA" && surchargeBase > 0) {
-    findings.push({
-      id: "AU_TRANSFER_DUTY.SA_FOREIGN_SURCHARGE_NOT_MODELLED",
-      severity: "WARNING",
-      message: "South Australia's foreign ownership surcharge on residential land is not modelled here; add it separately.",
-    });
-  }
   const foreignRate = surchargeBase > 0 ? surchargeRate(input.state, input.contractDate) : undefined;
   const foreignSurchargeDuty = foreignRate && surchargeBase > 0 ? mulBps(surchargeBase, foreignRate.rateBps) : 0;
   const totalDuty = base.duty + foreignSurchargeDuty;
@@ -669,6 +669,11 @@ function vicLandholderPhasing(landholdingsValue: Cents, duty: Cents): Cents {
   return mulRatio(duty, landholdingsValue - 100_000_000, 100_000_000);
 }
 
+/** "A$2,000,000" for findings (whole dollars; the engine has no locale dependency). */
+function formatAud(value: Cents): string {
+  return `A$${String(Math.round(value / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+}
+
 export function computeLandholderDuty(input: ComputeLandholderDutyInput): ComputeLandholderDutyResult {
   const date = assertDate(input.acquisitionDate, "acquisitionDate");
   const landholdingsValue = assertNonNegativeCents(input.landholdingsValue, "landholdingsValue");
@@ -684,38 +689,72 @@ export function computeLandholderDuty(input: ComputeLandholderDutyInput): Comput
   if (input.state === "NSW") rule = requireEffective(NSW_LANDHOLDER_RULES, date, "NSW landholder duty");
   else if (input.state === "VIC") rule = requireEffective(VIC_LANDHOLDER_RULES, date, "VIC landholder duty");
   else if (input.state === "QLD") rule = requireEffective(QLD_LANDHOLDER_RULES, date, "QLD landholder duty");
+  else if (input.state === "WA") rule = requireEffective(WA_LANDHOLDER_RULES, date, "WA landholder duty");
+  else if (input.state === "SA") rule = requireEffective(SA_LANDHOLDER_RULES, date, "SA landholder duty");
   else throw new RangeError(`Landholder duty is not modelled for ${input.state}.`);
 
   const threshold = rule.thresholdBpsByKind[input.landholderKind];
   if (threshold === undefined) throw new RangeError(`No landholder threshold defined for ${input.landholderKind}.`);
-  if (acquiredInterestBps < threshold) {
+  const notModelled = rule.notModelledKinds?.[input.landholderKind];
+  if (notModelled) throw new RangeError(notModelled);
+  const trustAcquisition = rule.trustAcquisitionKinds?.includes(input.landholderKind) ?? false;
+  const interestThreshold = trustAcquisition ? 0 : threshold;
+  const dutyLabel = trustAcquisition ? "Trust acquisition duty" : "Landholder duty";
+  const noDuty = (): ComputeLandholderDutyResult => ({
+    state: input.state,
+    relevantAcquisition: false,
+    significantInterestThresholdBps: interestThreshold,
+    landholdingsValue,
+    dutiableValue: 0,
+    baseDuty: 0,
+    foreignSurchargeDuty: 0,
+    totalDuty: 0,
+    lines: [line("AU.LANDHOLDER.TOTAL", dutyLabel, 0)],
+    findings,
+    notes,
+    ruleVersion: rule.ruleVersion,
+  });
+  if (trustAcquisition) {
+    findings.push({
+      id: "AU_LANDHOLDER.TRUST_ACQUISITION",
+      severity: "INFO",
+      message: `${input.state} charges an acquisition of units in an unlisted unit trust as a trust acquisition: transfer duty on the acquired share of the trust's land, whatever the size of the interest or the value of the land. The dutiable value is the higher of that share and the consideration paid; the consideration is not an input here, so check it is not higher.`,
+    });
+  }
+  const landValueForDuty = rule.dutiableLandValueMode === "RESIDENTIAL_LAND" ? residentialLandValue : landholdingsValue;
+  if (landValueForDuty === 0) {
+    findings.push({
+      id: "AU_LANDHOLDER.NO_DUTIABLE_LAND",
+      severity: "INFO",
+      message: `${input.state} landholder duty is not payable on the supplied land value because the modelled dutiable land component is nil.`,
+    });
+    return noDuty();
+  }
+  if (!trustAcquisition && rule.minimumLandholdingsValue !== undefined && landValueForDuty < rule.minimumLandholdingsValue) {
+    findings.push({
+      id: "AU_LANDHOLDER.BELOW_LAND_VALUE_THRESHOLD",
+      severity: "INFO",
+      message: `Not a landholder, so no landholder duty: ${input.state} land holdings of ${formatAud(landValueForDuty)} are below the ${formatAud(rule.minimumLandholdingsValue)} landholder threshold.`,
+    });
+    return noDuty();
+  }
+  if (trustAcquisition ? acquiredInterestBps === 0 : acquiredInterestBps < threshold) {
     findings.push({
       id: "AU_LANDHOLDER.NO_RELEVANT_ACQUISITION",
       severity: "INFO",
-      message: `No relevant acquisition is modelled because the acquired interest (${acquiredInterestBps / 100}%) is below the ${threshold / 100}% threshold for ${input.landholderKind}.`,
+      message: trustAcquisition
+        ? "No trust interest is acquired, so no duty."
+        : `No relevant acquisition is modelled because the acquired interest (${acquiredInterestBps / 100}%) is below the ${threshold / 100}% threshold for ${input.landholderKind}.`,
     });
-    return {
-      state: input.state,
-      relevantAcquisition: false,
-      significantInterestThresholdBps: threshold,
-      landholdingsValue,
-      dutiableValue: 0,
-      baseDuty: 0,
-      foreignSurchargeDuty: 0,
-      totalDuty: 0,
-      lines: [line("AU.LANDHOLDER.TOTAL", "Landholder duty", 0)],
-      findings,
-      notes,
-      ruleVersion: rule.ruleVersion,
-    };
+    return noDuty();
   }
 
   let dutiableValue = landholdingsValue;
   let baseDuty = 0;
   let transferRuleVersion = "";
-  if (input.landholderKind !== "PUBLIC_LANDHOLDER") {
-    dutiableValue = proportionalShare(landholdingsValue, acquiredInterestBps);
-    const transfer = computeBaseTransferDuty(input.state, date, dutiableValue, 0);
+  if (input.landholderKind !== "PUBLIC_LANDHOLDER" || rule.publicChargeMode === "INTEREST_SHARE") {
+    dutiableValue = proportionalShare(landValueForDuty, acquiredInterestBps);
+    const transfer = computeBaseTransferDuty(input.state, date, dutiableValue, input.state === "SA" && rule.dutiableLandValueMode === "RESIDENTIAL_LAND" ? dutiableValue : 0);
     baseDuty = transfer.duty;
     transferRuleVersion = transfer.ruleVersion;
   } else if (input.state === "NSW") {
@@ -726,8 +765,8 @@ export function computeLandholderDuty(input: ComputeLandholderDutyInput): Comput
     baseDuty = transfer.duty;
     transferRuleVersion = transfer.ruleVersion;
   } else {
-    const transfer = computeBaseTransferDuty(input.state, date, landholdingsValue, 0);
-    baseDuty = mulRatio(transfer.duty, 1, 10);
+    const transfer = computeBaseTransferDuty(input.state, date, landValueForDuty, input.state === "SA" && rule.dutiableLandValueMode === "RESIDENTIAL_LAND" ? landValueForDuty : 0);
+    baseDuty = rule.publicChargeMode === "TEN_PERCENT_OF_FULL_DUTY" ? mulRatio(transfer.duty, 1, 10) : transfer.duty;
     transferRuleVersion = transfer.ruleVersion;
   }
   if (input.state === "VIC") baseDuty = vicLandholderPhasing(landholdingsValue, baseDuty);
@@ -735,8 +774,8 @@ export function computeLandholderDuty(input: ComputeLandholderDutyInput): Comput
   let foreignSurchargeDuty = 0;
   let foreignSurchargeRuleVersion = "";
   if (input.foreignAcquirer && residentialLandValue > 0) {
-    if (input.state === "QLD") {
-      const foreignRate = surchargeRate("QLD", date)!;
+    if (input.state === "QLD" || input.state === "SA") {
+      const foreignRate = surchargeRate(input.state, date)!;
       if (input.landholderKind === "PUBLIC_LANDHOLDER") foreignSurchargeDuty = mulRatio(mulBps(residentialLandValue, foreignRate.rateBps), 1, 10);
       else foreignSurchargeDuty = mulBps(proportionalShare(residentialLandValue, acquiredInterestBps), foreignRate.rateBps);
       foreignSurchargeRuleVersion = foreignRate.ruleVersion;
@@ -755,19 +794,19 @@ export function computeLandholderDuty(input: ComputeLandholderDutyInput): Comput
 
   const totalDuty = baseDuty + foreignSurchargeDuty;
   const lines = [
-    line("AU.LANDHOLDER.VALUE", "Unencumbered landholder value", landholdingsValue),
-    line("AU.LANDHOLDER.DUTIABLE_VALUE", "Landholder dutiable value", input.landholderKind === "PUBLIC_LANDHOLDER" && input.state !== "QLD" && input.state !== "VIC" ? landholdingsValue : dutiableValue, `Threshold ${threshold / 100}%`),
-    line("AU.LANDHOLDER.BASE_DUTY", "Landholder duty", baseDuty),
+    line("AU.LANDHOLDER.VALUE", trustAcquisition ? "Unencumbered value of the trust's land" : "Unencumbered landholder value", landholdingsValue),
+    line("AU.LANDHOLDER.DUTIABLE_VALUE", trustAcquisition ? "Trust interest dutiable value" : "Landholder dutiable value", input.landholderKind === "PUBLIC_LANDHOLDER" && input.state !== "QLD" && input.state !== "VIC" && input.state !== "WA" ? landValueForDuty : dutiableValue, trustAcquisition ? "Any interest acquired" : `Threshold ${threshold / 100}%`),
+    line("AU.LANDHOLDER.BASE_DUTY", dutyLabel, baseDuty),
     ...(foreignSurchargeDuty > 0 ? [line("AU.LANDHOLDER.FOREIGN_SURCHARGE", "Additional foreign acquirer duty", foreignSurchargeDuty)] : []),
-    line("AU.LANDHOLDER.TOTAL", "Total landholder duty", totalDuty),
+    line("AU.LANDHOLDER.TOTAL", `Total ${dutyLabel.toLowerCase()}`, totalDuty),
   ];
 
   return {
     state: input.state,
     relevantAcquisition: true,
-    significantInterestThresholdBps: threshold,
+    significantInterestThresholdBps: interestThreshold,
     landholdingsValue,
-    dutiableValue: input.landholderKind === "PUBLIC_LANDHOLDER" && input.state !== "QLD" && input.state !== "VIC" ? landholdingsValue : dutiableValue,
+    dutiableValue: input.landholderKind === "PUBLIC_LANDHOLDER" && input.state !== "QLD" && input.state !== "VIC" && input.state !== "WA" ? landValueForDuty : dutiableValue,
     baseDuty,
     foreignSurchargeDuty,
     totalDuty,
@@ -819,7 +858,7 @@ export const RULES: RuleEntry[] = [
     id: "au-transfer-duty.nsw.landholder.2024-02-01",
     domain: "AU_TRANSFER_DUTY",
     title: "NSW landholder duty",
-    summary: "NSW landholder duty applies once a landholder has NSW landholdings of A$2m or more. From 1 February 2024 most private unit trusts use a 20% significant-interest threshold; private companies and registered wholesale or imminent wholesale unit trusts use 50%; public landholders use 90%.",
+    summary: "NSW landholder duty applies once a landholder has NSW landholdings of A$2m or more (Duties Act 1997 (NSW) s 146); below that there is no landholder duty. From 1 February 2024 most private unit trusts use a 20% significant-interest threshold; private companies and registered wholesale or imminent wholesale unit trusts use 50%; public landholders use 90%.",
     effectiveFrom: "2023-07-01",
     confidence: "VERIFIED",
     notes: "The engine models current direct single-step relevant acquisitions. Pre-1 July 2023 public-landholder calculations and multi-step statement-period histories require manual review.",
@@ -869,7 +908,7 @@ export const RULES: RuleEntry[] = [
     id: "au-transfer-duty.vic.landholder.current",
     domain: "AU_TRANSFER_DUTY",
     title: "Victoria landholder duty",
-    summary: "Victoria treats a company or unit trust with Victorian landholdings of A$1m or more as a landholder. Significant-interest thresholds are 20% for private unit trusts, 50% for private companies and wholesale unit trusts, and 90% for public landholders. Public landholders pay 10% of the duty that would apply to a transfer of all Victorian landholdings.",
+    summary: "Victoria treats a company or unit trust with Victorian landholdings of A$1m or more as a landholder; below A$1m there is no landholder duty, and between A$1m and A$2m duty is phased in (Duties Act 2000 (Vic) s 89). Significant-interest thresholds are 20% for private unit trusts, 50% for private companies and wholesale unit trusts, and 90% for public landholders. Public landholders pay 10% of the duty that would apply to a transfer of all Victorian landholdings.",
     effectiveFrom: "2021-07-01",
     confidence: "VERIFIED",
     sources: [
@@ -904,14 +943,16 @@ export const RULES: RuleEntry[] = [
     id: "au-transfer-duty.qld.landholder.current",
     domain: "AU_TRANSFER_DUTY",
     title: "Queensland landholder duty",
-    summary: "Queensland landholder duty applies once a corporation or listed unit trust has Queensland landholdings of A$2m or more. Relevant acquisitions are generally 50% for private landholders and 90% for public landholders. Public landholder duty is 10% of the transfer duty on all Queensland landholdings.",
+    summary: "Queensland landholder duty applies once a corporation or listed unit trust has Queensland landholdings of A$2m or more. Relevant acquisitions are generally 50% for private landholders and 90% for public landholders. Public landholder duty is 10% of the transfer duty on all Queensland landholdings. Units in an unlisted unit trust are trust interests instead: any acquisition is a trust acquisition, charged transfer duty on the higher of the consideration and the acquired share of the trust's dutiable property, with no value or interest threshold.",
     effectiveFrom: "2011-07-01",
     confidence: "VERIFIED",
+    notes: "For a trust acquisition the engine uses the acquired share of the land value; it has no consideration input, so a reviewer must check the consideration is not higher. Unlisted wholesale unit trusts are not modelled.",
     sources: [
-      { title: "Queensland Revenue Office | Landholders and land-holdings for landholder duty", url: "https://qro.qld.gov.au/duties/investors/landholder/landholders/", retrieved: "2026-10-10", publisher: "Queensland Revenue Office" },
+      { title: "Queensland Revenue Office | Landholders and land-holdings for landholder duty", url: "https://qro.qld.gov.au/duties/investors/landholder/landholders/", retrieved: "2026-10-19", publisher: "Queensland Revenue Office" },
       { title: "Queensland Revenue Office | Relevant acquisitions in a landholder", url: "https://qro.qld.gov.au/duties/investors/landholder/relevant-acquisitions/", retrieved: "2026-10-10", publisher: "Queensland Revenue Office" },
       { title: "Queensland Revenue Office | Calculating landholder duty", url: "https://qro.qld.gov.au/duties/investors/landholder/calculating/", retrieved: "2026-10-10", publisher: "Queensland Revenue Office" },
       { title: "Queensland Revenue Office | Additional foreign acquirer duty for landholder duty", url: "https://qro.qld.gov.au/duties/investors/landholder/afad/", retrieved: "2026-10-10", publisher: "Queensland Revenue Office" },
+      { title: "Queensland Revenue Office | Trust interest, acquisitions and surrenders (worked example: a 20% interest in a trust holding A$1m of land has a dutiable value of A$200,000)", url: "https://qro.qld.gov.au/duties/investors/trusts/interest-acquisitions/", retrieved: "2026-10-19", publisher: "Queensland Revenue Office" },
     ],
   },
   {
@@ -924,7 +965,7 @@ export const RULES: RuleEntry[] = [
     sources: [
       { title: "WA Department of Treasury and Finance | Transfer duty assessment (rates of duty)", url: "https://www.wa.gov.au/organisation/department-of-treasury-and-finance/transfer-duty-assessment", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Western Australia" },
     ],
-    notes: "Concessional, first home owner and off-the-plan rates, and WA landholder duty, are out of scope. Transactions before 2 July 2014 are not modelled.",
+    notes: "Concessional, first home owner and off-the-plan rates are out of scope. Transactions before 2 July 2014 are not modelled.",
   },
   {
     id: "au-transfer-duty.wa.foreign.2019-01-01",
@@ -940,17 +981,33 @@ export const RULES: RuleEntry[] = [
     notes: "The 7% rate is on the WA Government page; the 1 January 2019 start is taken from the amending Bill's explanatory memorandum and secondary sources. Developer exemptions are not modelled.",
   },
   {
-    id: "au-transfer-duty.sa.general.2018-07-01",
+    id: "au-transfer-duty.wa.landholder.2008-07-01",
+    domain: "AU_TRANSFER_DUTY",
+    title: "Western Australia landholder duty",
+    summary: "WA landholder duty applies to corporations and unit trust schemes with WA land assets of A$2m or more. A significant interest is 50% in an unlisted landholder and 90% in a listed landholder. Duty is charged at the general rate on the acquirer's share of the landholder's WA land assets; listed landholders get no concession.",
+    effectiveFrom: "2008-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "Duties Act 2008 (WA), sections 184, 188 and 189", url: "https://www.legislation.wa.gov.au/legislation/statutes.nsf/main_mrtitle_2786_homepage.html", retrieved: "2026-10-19", publisher: "Parliamentary Counsel's Office, Western Australia" },
+      { title: "WA Government | Landholder duty: duty requirements", url: "https://www.wa.gov.au/government/multi-step-guides/duties-information-requirements/landholder-duty-duty-requirements", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Western Australia" },
+      { title: "WA Government | Landholder duty fact sheet", url: "https://www.wa.gov.au/system/files/2025-07/duties-landholder-fact-sheet.pdf", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Western Australia" },
+    ],
+    notes: "The engine models direct single-step acquisitions only. Excluded interests (s 189), the listed-landholder further-interest valuation date (s 187), linked-entity tracing, chattels and historical reconstruction still need manual review.",
+  },
+  {
+    id: "au-transfer-duty.sa.general.2002-09-05",
     domain: "AU_TRANSFER_DUTY",
     title: "South Australia conveyance duty rates",
-    summary: "South Australian duty on a conveyance runs from A$1.00 for every A$100 or part up to A$12,000 to A$21,330 plus A$5.50 for every A$100 or part above A$500,000. Applied to contracts from 1 July 2018 on residential and primary-production land.",
-    effectiveFrom: SA_TRANSFER_FROM,
-    confidence: "VERIFIED_SECONDARY",
+    summary: "South Australian conveyance duty runs from A$1.00 for every A$100 or part up to A$12,000 to A$21,330 plus A$5.50 for every A$100 or part above A$500,000. RevenueSA's rate chart is dated 5 September 2002, and the SA legislation site lists authorised historical Stamp Duties Act versions covering the app's pre-2018 contract dates.",
+    effectiveFrom: "2002-09-05",
+    confidence: "VERIFIED",
     sources: [
       { title: "RevenueSA | Rate of stamp duty", url: "https://www.revenuesa.sa.gov.au/stamp-duty/rate-of-stamp-duty", retrieved: "2026-10-19", publisher: "RevenueSA" },
+      { title: "RevenueSA | Stamp Duty Rate Chart 05/09/2002", url: "https://www.revenuesa.sa.gov.au/__data/assets/pdf_file/0007/204775/ratechart050902.pdf", retrieved: "2026-10-19", publisher: "RevenueSA" },
+      { title: "South Australian Legislation | Stamp Duties Act 1923 historical versions", url: "https://www.legislation.sa.gov.au/lz?path=%2FC%2FA%2FSTAMP%20DUTIES%20ACT%201923", retrieved: "2026-10-19", publisher: "Government of South Australia" },
       { title: "RevenueSA | Information Circular 103 (worked example: A$2,200,000 gives A$114,830)", url: "https://www.revenuesa.sa.gov.au/resources/publications/information-circulars/information-circulars/ic_103/information-circular-103_21112022", retrieved: "2026-10-19", publisher: "RevenueSA" },
     ],
-    notes: "RevenueSA publishes the current table only. Its December 2022 worked example uses the same rates, and secondary sources describe them as unchanged since before 2018, so they are applied from 1 July 2018. Earlier contracts, concessions and the foreign ownership surcharge are not modelled.",
+    notes: "The historical legislation page was accessed in-browser because direct script downloads are challenged; it lists authorised RTF/PDF versions including 1 July 2011 to 30 May 2012 and the 2015-2018 phase-out years.",
   },
   {
     id: "au-transfer-duty.sa.qualifying-land.2018-07-01",
@@ -962,6 +1019,45 @@ export const RULES: RuleEntry[] = [
     sources: [
       { title: "RevenueSA | Information Circular 103: stamp duty on qualifying land", url: "https://www.revenuesa.sa.gov.au/resources/publications/information-circulars/information-circulars/ic_103/information-circular-103_21112022", retrieved: "2026-10-19", publisher: "RevenueSA" },
     ],
-    notes: "Stamp Duties Act 1923 s71DC. The 2015-2018 phase-out (one-third and two-thirds reductions) is not modelled; whether land is qualifying land follows the property kind in the profile.",
+    notes: "Stamp Duties Act 1923 s105A / former s71DC. Whether land is qualifying land follows the property kind in the profile.",
   },
+  {
+    id: "au-transfer-duty.sa.qualifying-land.phaseout.2015-12-07",
+    domain: "AU_TRANSFER_DUTY",
+    title: "South Australia qualifying-land duty phase-out",
+    summary: "For qualifying land, SA allowed no reduction for contracts on or before 6 December 2015, a one-third reduction from 7 December 2015 to 30 June 2017, a two-thirds reduction from 1 July 2017 to 30 June 2018, and a full reduction from 1 July 2018.",
+    effectiveFrom: "2015-12-07",
+    effectiveTo: "2018-06-30",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "RevenueSA | Information Circular 103: stamp duty on qualifying land", url: "https://www.revenuesa.sa.gov.au/tools-and-resources/resources/publications/information-circulars/information-circulars/ic_103/ic_103_07122018", retrieved: "2026-10-19", publisher: "RevenueSA" },
+    ],
+    notes: "The same phase-out is applied to notional acquisitions under Part 4 because IC 103 treats conveyances and transfers as including notional acquisitions of underlying local land assets.",
+  },
+  {
+    id: "au-transfer-duty.sa.surcharge.2018-01-01",
+    domain: "AU_TRANSFER_DUTY",
+    title: "South Australia foreign ownership surcharge",
+    summary: "Foreign persons and foreign trusts acquiring an interest in residential land in SA pay a 7% surcharge from 1 January 2018, including where a foreign entity notionally acquires residential land under Part 4 landholder provisions.",
+    effectiveFrom: "2018-01-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "RevenueSA | Foreign ownership surcharge", url: "https://www.revenuesa.sa.gov.au/stamp-duty/foreign-ownership-surcharge", retrieved: "2026-10-19", publisher: "RevenueSA" },
+      { title: "RevenueSA | Foreign ownership surcharge applicable transactions", url: "https://www.revenuesa.sa.gov.au/stamp-duty/foreign-ownership-surcharge/applicable-transactions", retrieved: "2026-10-19", publisher: "RevenueSA" },
+    ],
+  },
+  {
+    id: "au-transfer-duty.sa.landholder.2018-07-01",
+    domain: "AU_TRANSFER_DUTY",
+    title: "South Australia landholder duty",
+    summary: "SA landholder duty applies when a prescribed interest is acquired or increased in an entity that holds residential or primary-production land. Prescribed interests are 50% for private companies and private unit trusts, and 90% for listed companies and public unit trusts; entities holding only qualifying land are outside duty from 1 July 2018.",
+    effectiveFrom: "2018-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "RevenueSA | Land Holder", url: "https://www.revenuesa.sa.gov.au/stamp-duty/land-holder", retrieved: "2026-10-19", publisher: "RevenueSA" },
+      { title: "RevenueSA | Stamp Duty Land Holder Guide to Legislation", url: "https://www.revenuesa.sa.gov.au/tools-and-resources/resources/publications/guides-to-legislation/stamp-duty-land-holder-guide-to-legislation/guide-to-legislation-stamp-duty-land-holder-2020", retrieved: "2026-10-19", publisher: "RevenueSA" },
+    ],
+    notes: "The engine models residential landholder value via residentialLandValue. Primary-production landholder acquisitions still need manual review because the calculator input has no primary-production split.",
+  },
+  ...TERRITORY_TRANSFER_RULES,
 ];

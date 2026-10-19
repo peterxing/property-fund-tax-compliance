@@ -12,7 +12,7 @@ import {
   stampDutyDeadline,
 } from "../../src/engine/stampDuty.ts";
 
-test("computeBsd reproduces the IRAS S$209,606 example", () => {
+test("computeBsd applies the residential marginal tiers and rounds down to the dollar (S$209,606 gives S$2,392)", () => {
   const result = computeBsd({
     purchaseDate: "2026-10-09",
     purchasePrice: 20_960_600,
@@ -106,6 +106,32 @@ test("computeLeaseDuty applies 0.4% on total rent for terms up to four years", (
   });
   assert.equal(result.rentDuty, 9_600);
   assert.equal(result.duty, 9_600);
+});
+
+test("lease terms are counted in calendar months, so leap days and month-end starts do not distort the rent or the term", () => {
+  // A two-year lease spanning 29 Feb 2028: S$100,000 a month for 24 months, average annual rent exactly S$1,200,000 (it used to divide the
+  // 731 inclusive days by 365 and show S$1,198,358.41).
+  const twoYears = computeLeaseDuty({ leaseDate: "2026-10-09", leaseStartDate: "2026-10-09", leaseEndDate: "2028-10-08", rentSteps: [{ from: "2026-10-09", to: "2028-10-08", rent: 100_000_00, frequency: "MONTHLY" }] });
+  assert.equal(twoYears.totalRent, 2_400_000_00);
+  assert.equal(twoYears.averageAnnualRent, 1_200_000_00);
+  assert.equal(twoYears.duty, 9_600_00, "0.4% of total rent");
+
+  // A lease starting on 31 January runs 12 monthly periods to 30 January, not 13 (counting from each previous month end used to drift to the 28th).
+  const monthEnd = computeLeaseDuty({ leaseDate: "2026-01-31", leaseStartDate: "2026-01-31", leaseEndDate: "2027-01-30", rentSteps: [{ from: "2026-01-31", to: "2027-01-30", rent: 10_000_00, frequency: "MONTHLY" }] });
+  assert.equal(monthEnd.totalRent, 120_000_00);
+  assert.equal(monthEnd.averageAnnualRent, 120_000_00);
+
+  // A four-year lease that spans a leap day is still a lease of four years or less (0.4% of total rent), and an annual rent step over four
+  // years is four years' rent.
+  const fourYears = computeLeaseDuty({ leaseDate: "2026-01-01", leaseStartDate: "2026-01-01", leaseEndDate: "2029-12-31", rentSteps: [{ from: "2026-01-01", to: "2029-12-31", rent: 500_000_00, frequency: "ANNUAL" }] });
+  assert.equal(fourYears.totalRent, 2_000_000_00);
+  assert.equal(fourYears.bands[0]!.label, "0.4% of total rent");
+  assert.equal(fourYears.duty, 8_000_00);
+
+  // Five years: 0.4% of four times the average annual rent.
+  const fiveYears = computeLeaseDuty({ leaseDate: "2026-01-01", leaseStartDate: "2026-01-01", leaseEndDate: "2030-12-31", rentSteps: [{ from: "2026-01-01", to: "2030-12-31", rent: 500_000_00, frequency: "ANNUAL" }] });
+  assert.equal(fiveYears.averageAnnualRent, 500_000_00);
+  assert.equal(fiveYears.duty, 8_000_00, "0.4% x 4 x S$500,000");
 });
 
 test("stampDutyDeadline and computeAcquisitionDuties combine deadline and taxes", () => {

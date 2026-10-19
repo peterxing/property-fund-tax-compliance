@@ -270,7 +270,7 @@ test("GST due dates and displayed basis match the applied AU concession and SG F
   assert.match(southbankJun?.dueBasis ?? "", /registered-agent lodgment program concession/i);
   assert.equal(coastlineJun?.dueDate, "2026-07-28");
   assert.match(coastlineJun?.dueBasis ?? "", /28 days after quarter end/i);
-  assert.equal(merantiJun?.dueDate, "2026-07-30");
+  assert.equal(merantiJun?.dueDate, "2026-07-31", "IRAS: the Apr–Jun period is due 31 Jul");
   assert.match(merantiJun?.dueBasis ?? "", /one month after the quarter end/i);
 });
 

@@ -48,9 +48,28 @@ test("late-payment penalty is added when remittance is after the due date", () =
     paymentType: "INTEREST",
     remittedDate: "2026-05-20",
   });
+  // Due 15 Mar 2026; the 1% runs from 14 Apr 2026 and one month (to 14 May) is complete by 20 May.
   assert.equal(result.latePenalty?.basePenalty, 750_000);
-  assert.equal(result.latePenalty?.monthlyPenalty, 300_000);
-  assert.equal(result.latePenalty?.totalPenalty, 1_050_000);
+  assert.equal(result.latePenalty?.monthlyPenalty, 150_000);
+  assert.equal(result.latePenalty?.totalPenalty, 900_000);
+});
+
+test("late-payment penalty reproduces IRAS's worked example and caps the additional penalty at 15%", () => {
+  // IRAS, Late payment and non-payment of taxes (read 19 October 2026): payment to the non-resident 26 May 2025, S$7,000 tax due
+  // 15 Jul 2025, paid 25 Oct 2025: 5% = S$350 plus 1% x 2 completed months = S$140, S$490 in all.
+  const iras = computeWithholdingTax({ paymentDate: "2025-05-26", grossPayment: 70_000_00, paymentType: "ROYALTY", remittedDate: "2025-10-25" });
+  assert.equal(iras.tax, 7_000_00);
+  assert.equal(iras.latePenalty?.dueDate, "2025-07-15");
+  assert.equal(iras.latePenalty?.basePenalty, 350_00);
+  assert.equal(iras.latePenalty?.monthlyPenalty, 140_00);
+  assert.equal(iras.latePenalty?.totalPenalty, 490_00);
+
+  const oneDayLate = computeWithholdingTax({ paymentDate: "2025-05-26", grossPayment: 70_000_00, paymentType: "ROYALTY", remittedDate: "2025-07-16" });
+  assert.equal(oneDayLate.latePenalty?.totalPenalty, 350_00, "5% only until a month is complete after day 30");
+
+  const years = computeWithholdingTax({ paymentDate: "2025-05-26", grossPayment: 70_000_00, paymentType: "ROYALTY", remittedDate: "2027-12-31" });
+  assert.equal(years.latePenalty?.monthlyPenalty, 1_050_00, "additional penalty capped at 15%");
+  assert.equal(years.latePenalty?.totalPenalty, 1_400_00, "20% in all");
 });
 
 test("withholding payment-type catalogue covers all supported ids", () => {

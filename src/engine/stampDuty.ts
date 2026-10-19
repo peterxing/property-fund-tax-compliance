@@ -1,5 +1,5 @@
 import type { ISODate } from "./dates.ts";
-import { addDays, addMonths, addYears, compareISO } from "./dates.ts";
+import { addDays, addMonths, addYears, compareISO, diffDays } from "./dates.ts";
 import type { Bps, Cents } from "./money.ts";
 import { floorToDollar, mulBps } from "./money.ts";
 import type { RuleEntry } from "./rules.ts";
@@ -476,23 +476,22 @@ function holdingPeriodBand(disposalDate: ISODate, acquisitionDate: ISODate, band
   return bands[bands.length - 1]!;
 }
 
-function leapYear(year: number): boolean {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-}
-
-function durationYearsInclusive(start: ISODate, end: ISODate): number {
-  const totalDays = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000 + 1;
-  return totalDays / (leapYear(Number(start.slice(0, 4))) ? 366 : 365);
-}
-
-function leaseMonths(step: LeaseRentStep): number {
+/**
+ * Lease term in years. Whole calendar months (counted from the start date) are twelfths of a year and any days left over are days / 365, so
+ * a lease of exactly two years is 2 whatever leap days it spans (IRAS states the lease period in years, months and days).
+ */
+function leaseTermYears(start: ISODate, end: ISODate): number {
+  const endExclusive = addDays(end, 1);
   let months = 0;
-  let cursor = step.from;
+  while (compareISO(addMonths(start, months + 1), endExclusive) <= 0) months += 1;
+  return months / 12 + diffDays(addMonths(start, months), endExclusive) / 365;
+}
+
+/** Monthly rent periods from `from` to `to`, counted from `from` so a lease starting on the 29th to 31st does not drift; a part month counts as a month. */
+function leaseMonths(step: LeaseRentStep): number {
   const endExclusive = addDays(step.to, 1);
-  while (compareISO(cursor, endExclusive) < 0) {
-    months += 1;
-    cursor = addMonths(cursor, 1);
-  }
+  let months = 0;
+  while (compareISO(addMonths(step.from, months), endExclusive) < 0) months += 1;
   return months;
 }
 
@@ -637,9 +636,9 @@ export function computeLeaseDuty(input: ComputeLeaseDutyInput): ComputeLeaseDuty
   for (const step of input.rentSteps) {
     if (compareISO(step.to, step.from) < 0) throw new RangeError("A rent step cannot end before it starts.");
     const rent = assertNonNegative(step.rent, "rent step amount");
-    totalRent += Math.round(step.frequency === "ONE_OFF" ? rent : step.frequency === "ANNUAL" ? rent * durationYearsInclusive(step.from, step.to) : rent * leaseMonths(step));
+    totalRent += Math.round(step.frequency === "ONE_OFF" ? rent : step.frequency === "ANNUAL" ? rent * leaseTermYears(step.from, step.to) : rent * leaseMonths(step));
   }
-  const leaseYears = input.leaseEndDate ? durationYearsInclusive(input.leaseStartDate, input.leaseEndDate) : 4.0001;
+  const leaseYears = input.leaseEndDate ? leaseTermYears(input.leaseStartDate, input.leaseEndDate) : 4.0001;
   const contractualAar = input.leaseEndDate ? Math.round(totalRent / leaseYears) : Math.round(totalRent);
   const averageAnnualRent = higherOf(contractualAar, input.marketAnnualRent ?? 0);
   let rentDuty = 0;

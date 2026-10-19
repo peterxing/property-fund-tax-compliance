@@ -1,4 +1,4 @@
-import { addDays, addMonths, addYears, compareISO, diffDays, monthsBetween, parseISO, type ISODate } from "./dates.ts";
+import { addDays, addMonths, addYears, compareISO, diffDays, endOfMonth, monthsBetween, parseISO, type ISODate } from "./dates.ts";
 import type { Bps, Cents } from "./money.ts";
 import { mulBps, ratioBps } from "./money.ts";
 import { lookupGstCode, type GstCanonicalCode, type GstCodeDefinition } from "./gstCodes.ts";
@@ -461,8 +461,13 @@ export function classifyPropertySupply(input: PropertySupplyClassificationInput)
   return { suggestedTaxCode: "SR", legalBasis: "Sale, lease and related charges for commercial, industrial and other non-residential property are standard-rated supplies." };
 }
 
+/**
+ * IRAS: the return and payment are due one month after the accounting period ends. A period ending on the last day of a month is due on the
+ * last day of the next month (Apr-Jun is due 31 Jul, Jul-Sep 31 Oct); a special period ending mid-month is due on the same day of the next
+ * month (5 Apr-5 Jul 2026 is due 5 Aug 2026).
+ */
 export function gstReturnDueDate(periodEnd: ISODate): ISODate {
-  return addMonths(periodEnd, 1);
+  return periodEnd === endOfMonth(periodEnd) ? endOfMonth(addMonths(periodEnd, 1)) : addMonths(periodEnd, 1);
 }
 
 export function gstGiroPaymentDate(periodEnd: ISODate): ISODate {

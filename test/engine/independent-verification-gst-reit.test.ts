@@ -104,7 +104,13 @@ test("GST rate history matches the IRAS table", () => {
 });
 
 test("GST F5 due date is one month after the accounting period; box arithmetic holds on a simple return", () => {
-  assert.equal(gstReturnDueDate("2025-09-30"), "2025-10-30", "engine helper adds one month; the calendar service uses month-end (31 Oct) per IRAS wording");
+  // IRAS, GST filing due dates (read 19 October 2026): Jan–Mar 30 Apr, Apr–Jun 31 Jul, Jul–Sep 31 Oct, Oct–Dec 31 Jan; a special period
+  // 5 Apr–5 Jul 2026 is due 5 Aug 2026. (The helper used to add one calendar month, giving 30 Jul and 30 Oct.)
+  assert.equal(gstReturnDueDate("2026-03-31"), "2026-04-30");
+  assert.equal(gstReturnDueDate("2026-06-30"), "2026-07-31");
+  assert.equal(gstReturnDueDate("2025-09-30"), "2025-10-31");
+  assert.equal(gstReturnDueDate("2026-12-31"), "2027-01-31");
+  assert.equal(gstReturnDueDate("2026-07-05"), "2026-08-05", "special accounting period");
   const r = buildGstReturn({
     periodStart: "2026-01-01", periodEnd: "2026-03-31",
     transactions: [

@@ -14,7 +14,7 @@ const expected: Record<string, { summary: RegExp; lines: Record<string, string> 
   "au-borrowing-costs": { summary: /A\$250,000/, lines: { "2026": "A$49,973", "2028": "A$50,110", "2030": "A$49,973" } },
   "sg-stamp-duty": { summary: /S\$8,459,600/, lines: { "BSD": "S$659,600", "ABSD": "S$7,800,000", "Net duty": "S$8,459,600" } },
   "sg-property-tax": { summary: /S\$24,000/, lines: { "Gross tax": "S$24,000", "Rebate": "S$0", "Net tax": "S$24,000" } },
-  "sg-withholding-tax": { summary: /S\$150,000/, lines: { "Effective rate": "15%", "Tax": "S$150,000", "Late penalty": "S$9,000" } },
+  "sg-withholding-tax": { summary: /S\$150,000/, lines: { "Effective rate": "15%", "Tax": "S$150,000", "Late penalty": "S$7,500" } },
   "sg-cit": { summary: /S\$35,788/, lines: { "Headline rate": "17%", "Exemption": "S$102,500", "Tax payable": "S$35,788" } },
   "sg-gst": { summary: /S\$13,600/, lines: { "Registration basis": "RETROSPECTIVE", "Late filing penalty": "S$600", "Late payment penalty": "S$13,000" } },
   "sg-badges": { summary: /score -10/, lines: { "Outcome": "LIKELY CAPITAL", "Total score": "-10" } },

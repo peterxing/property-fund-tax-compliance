@@ -182,12 +182,20 @@ describe("South Australia transfer duty", () => {
     assert.equal(duty("SA", 12_000, "2026-10-01").totalDuty, D(120));
   });
 
-  it("refuses earlier contracts and flags the foreign ownership surcharge it does not model", () => {
-    assert.throws(() => duty("SA", 500_000, "2018-06-30"), /modelled for contracts from 1 July 2018, when duty on non-residential land ended; this contract is dated 30 June 2018\./);
-    assert.throws(() => duty("SA", 648_381_847, "2012-05-21", { propertyKind: "NON_RESIDENTIAL" }), /dated 21 May 2012/, "Lakeside Marketplace stays unmodelled");
+  it("applies the qualifying-land phase-out before 1 July 2018", () => {
+    assert.equal(duty("SA", 500_000, "2018-06-30", { propertyKind: "NON_RESIDENTIAL" }).totalDuty, D(7_110), "two-thirds reduction: one-third of A$21,330 remains");
+    assert.equal(duty("SA", 500_000, "2017-06-30", { propertyKind: "NON_RESIDENTIAL" }).totalDuty, D(14_220), "one-third reduction: two-thirds of A$21,330 remains");
+    assert.equal(duty("SA", 500_000, "2015-12-06", { propertyKind: "NON_RESIDENTIAL" }).totalDuty, D(21_330), "no reduction before the phase-out starts");
+    assert.equal(duty("SA", 648_381_847, "2012-05-21", { propertyKind: "NON_RESIDENTIAL" }).totalDuty, D(35_654_834.50), "Lakeside Marketplace: no qualifying-land reduction in 2012");
+  });
+
+  it("models the foreign ownership surcharge on residential land from 1 January 2018", () => {
     const foreign = duty("SA", 1_000_000, "2026-10-01", { purchaser: { kind: "INDIVIDUAL", foreignPerson: true } });
-    assert.equal(foreign.foreignSurchargeDuty, 0);
-    assert.ok(foreign.findings.some((finding) => finding.id === "AU_TRANSFER_DUTY.SA_FOREIGN_SURCHARGE_NOT_MODELLED"));
+    assert.equal(foreign.foreignSurchargeDuty, D(70_000));
+    assert.equal(foreign.totalDuty, D(118_830));
+    assert.equal(foreign.findings.some((finding) => finding.id === "AU_TRANSFER_DUTY.SA_FOREIGN_SURCHARGE_NOT_MODELLED"), false);
+    assert.equal(duty("SA", 1_000_000, "2017-12-31", { purchaser: { kind: "INDIVIDUAL", foreignPerson: true } }).foreignSurchargeDuty, 0);
+    assert.equal(duty("SA", 1_000_000, "2026-10-01", { propertyKind: "NON_RESIDENTIAL", purchaser: { kind: "COMPANY", foreignCorporation: true } }).foreignSurchargeDuty, 0);
   });
 });
 

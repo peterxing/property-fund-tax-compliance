@@ -17,7 +17,7 @@ export const AU_COVERAGE_LEVELS = [
   { id: "NOT_MODELLED", label: "Not modelled", description: "The jurisdiction is catalogued for UI selection, but no calculator logic is shipped here." },
 ] as const satisfies readonly { id: AuCoverageLevel; label: string; description: string }[];
 
-export const AU_STATE_TAX_CATALOGUE = [
+export const AU_STATE_TAX_CATALOGUE: readonly AuStateTaxCoverage[] = [
   {
     state: "NSW",
     label: "New South Wales",
@@ -44,37 +44,37 @@ export const AU_STATE_TAX_CATALOGUE = [
     label: "Western Australia",
     transferDutyCoverage: "PARTIAL",
     landTaxCoverage: "FULL",
-    description: "Verified WA land tax scale and Metropolitan Region Improvement Tax, and the WA general rate of transfer duty with 7% foreign transfer duty on residential property; WA landholder duty and concessional rates are not modelled.",
+    description: "Verified WA land tax scale and Metropolitan Region Improvement Tax, the WA general rate of transfer duty with 7% foreign transfer duty on residential property, and direct single-step WA landholder duty at the general rate for listed and unlisted landholders; excluded interests and complex tracing remain manual-review.",
   },
   {
     state: "SA",
     label: "South Australia",
     transferDutyCoverage: "PARTIAL",
     landTaxCoverage: "FULL",
-    description: "Verified South Australian general and trust land tax rates for 2021-22 to 2026-27, and conveyance duty for contracts from 1 July 2018 with no duty on qualifying (non-residential) land; SA landholder duty, the foreign ownership surcharge and earlier contracts are not modelled.",
+    description: "Verified South Australian general and trust land tax rates for 2021-22 to 2026-27, conveyance duty back to the 2002 rate chart, qualifying-land phase-out and abolition, 7% foreign ownership surcharge on residential land, and direct residential landholder duty; primary-production and complex tracing remain manual-review.",
   },
   {
     state: "TAS",
     label: "Tasmania",
-    transferDutyCoverage: "NOT_MODELLED",
-    landTaxCoverage: "NOT_MODELLED",
-    description: "Catalogued only in this delivery; Tasmania duty and land tax rates need a separate verified implementation.",
+    transferDutyCoverage: "PARTIAL",
+    landTaxCoverage: "FULL",
+    description: "Verified Tasmanian property transfer duty and 8% foreign investor duty surcharge on residential property, plus General Land land tax and the 2% foreign investor land tax surcharge; primary-production surcharge pathways and concessions are not modelled.",
   },
   {
     state: "ACT",
     label: "Australian Capital Territory",
-    transferDutyCoverage: "NOT_MODELLED",
-    landTaxCoverage: "NOT_MODELLED",
-    description: "Catalogued only in this delivery; ACT duty and land tax rates need a separate verified implementation.",
+    transferDutyCoverage: "FULL",
+    landTaxCoverage: "PARTIAL",
+    description: "Verified ACT residential and commercial conveyance duty from 1 July 2022, including the commercial duty phase-out thresholds. Residential land tax (2025-26 and 2026-27) and the foreign ownership surcharge are modelled; commercial land tax is a cited nil.",
   },
   {
     state: "NT",
     label: "Northern Territory",
-    transferDutyCoverage: "NOT_MODELLED",
-    landTaxCoverage: "NOT_MODELLED",
-    description: "Catalogued only in this delivery; NT duty and land tax rates need a separate verified implementation.",
+    transferDutyCoverage: "FULL",
+    landTaxCoverage: "FULL",
+    description: "Verified Northern Territory stamp duty on land from 1 July 2022 using the V-squared formula and percentage bands; no land tax and no foreign-purchaser surcharge are modelled as cited nils.",
   },
-] as const satisfies readonly AuStateTaxCoverage[];
+];
 
 export const AU_MODELLED_TRANSFER_DUTY_STATES = AU_STATE_TAX_CATALOGUE.filter((entry) => entry.transferDutyCoverage !== "NOT_MODELLED").map((entry) => ({ id: entry.state, label: entry.label, description: entry.description })) as readonly { id: AuState; label: string; description: string }[];
 

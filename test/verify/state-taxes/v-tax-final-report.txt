@@ -1,0 +1,22 @@
+v-tax final report
+
+Files changed:
+- test/verify/state-taxes/territories-verifier.test.ts
+- test/verify/state-taxes/v-tax-final-report.txt
+
+Checked as black-box engine/domain calls: TAS, ACT and NT land tax / transfer duty; WA landholder duty; SA conveyance duty from 5 Sep 2002; SA qualifying-land phase-out; SA foreign ownership surcharge; SA landholder duty; AU_STATE_TAX_CATALOGUE and RULES metadata. Test result: 16 tests total, 12 passing and 4 skipped defect tests.
+
+Territories: TAS transfer duty/FIDS and land tax/FILTS matched official SRO pages across band boundaries, mid-band/large values and surcharge on/off. ACT conveyance duty matched the official calculator API for residential, commercial phase-out and mixed-use; ACT commercial land tax and NT land tax/foreign purchaser surcharge returned cited nils. NT formula and 4.95% mid-band matched official NT pages.
+
+WA/SA: WA A$2m landholder threshold and 50% unlisted / 90% listed trigger matched the WA Government duty-requirements page. SA conveyance bands matched RevenueSA’s rate page and seeded Lakeside Marketplace (21 May 2012, A$648,381,847, non-residential) independently recalculates to A$35,654,834.50. The 5 Sep 2002 start is supported by RevenueSA’s current page linking “Stamp Duty Rate Chart 05/09/2002”; direct PDF fetch was 403, so I could not inspect the PDF body. SA IC103 phase-out and worked example matched. SA FOS 7% from 1 Jan 2018 on residential transfers and Part 4 landholder acquisitions matched RevenueSA FOS pages. SA post-1 Jul 2018 landholder duty used residential land only; pre-2018 all-land duty used IC103 phase-out.
+
+Defects / unverifiable claims captured as skipped tests:
+1. ACT land-tax 2026-27 rates apply before official 1 Jul 2026 start.
+2. ACT land-tax rule effectiveFrom says 2026-01-01 while source says from 1 Jul 2026.
+3. NT A$3m-under-A$5m duty applies 5.95%; official ready-reckoner evidence indicates 5.75%.
+4. WA listed/public 10%-of-full-duty concession was not supported by official sources I could verify; source evidence only confirmed the 90% trigger.
+
+Lead follow-up (19 Oct 2026): all four defects are fixed and their tests now run.
+1-2. ACT: 2025-26 is modelled from the Taxation Administration (Amounts Payable—Land Tax) Determination 2025 (DI2025-153: fixed charge A$1,693, same rate table, 0.75% surcharge); the 2026-27 schedule and rule now start on 1 July 2026. For QLD, WA, SA, TAS and the ACT an assessment date from July to December counts toward the year ending the next 30 June.
+3. NT: 5.75% from A$3m and below A$5m, 5.95% from A$5m, confirmed against the Stamp Duty Act 1978 (NT), Schedule 1 clause 1(2).
+4. WA: the listed concession is removed. Duties Act 2008 (WA) s 184(1) charges the general rate and s 188(3) values the acquirer's interest; ss 190-192 were deleted with effect from 1 July 2008. Listed landholders now pay the general rate on the acquirer's interest.

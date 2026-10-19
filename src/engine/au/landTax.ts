@@ -36,7 +36,9 @@ export interface AuLandTaxHolding {
 
 export interface ComputeLandTaxInput {
   state: AuState;
+  /** A date in the land-tax year. In QLD, WA, SA, TAS and the ACT a date from July to December counts toward the year ending the next 30 June. */
   assessmentDate?: ISODate;
+  /** Land-tax year: the calendar year in NSW and VIC; the year ending 30 June in QLD, WA, SA, TAS and the ACT (2026 means 2025-26). */
   assessmentYear?: number;
   holdings: readonly AuLandTaxHolding[];
   owner: AuLandTaxOwner;
@@ -93,6 +95,12 @@ interface SurchargeRule {
   threshold?: Cents;
 }
 
+interface ActLandTaxSchedule {
+  ruleVersion: string;
+  fixedCharge: Cents;
+  valuationSchedule: LandTaxSchedule;
+}
+
 function assertDate(date: ISODate, label: string): ISODate {
   parseISO(date);
   return date;
@@ -146,13 +154,17 @@ function computeScheduledTax(schedule: LandTaxSchedule, totalValue: Cents): { ta
   return { tax: band.baseTax + applyBandRate(totalValue - band.excessFrom, band), band };
 }
 
+/** States whose land-tax year is a financial year; an assessment date from July to December belongs to the year ending the next 30 June. */
+const FINANCIAL_YEAR_LAND_TAX_STATES: readonly AuState[] = ["QLD", "WA", "SA", "TAS", "ACT"];
+
 function resolveAssessmentYear(input: ComputeLandTaxInput): number {
   if (input.assessmentYear !== undefined) {
     if (!Number.isInteger(input.assessmentYear) || input.assessmentYear < 2022) throw new RangeError("assessmentYear must be an integer year from 2022 onwards.");
     return input.assessmentYear;
   }
   if (!input.assessmentDate) throw new RangeError("Provide assessmentYear or assessmentDate.");
-  return parseISO(assertDate(input.assessmentDate, "assessmentDate")).y;
+  const { y, m } = parseISO(assertDate(input.assessmentDate, "assessmentDate"));
+  return FINANCIAL_YEAR_LAND_TAX_STATES.includes(input.state) && m >= 7 ? y + 1 : y;
 }
 
 function resolveSurchargeableValue(state: AuState, holding: AuLandTaxHolding, findings: Finding[]): Cents {
@@ -163,6 +175,10 @@ function resolveSurchargeableValue(state: AuState, holding: AuLandTaxHolding, fi
     return explicit;
   }
   if (state === "WA") return holding.metropolitanRegion === false ? 0 : taxableLandValue;
+  if (state === "TAS" || state === "ACT") {
+    if (holding.residentialShareBps !== undefined) return mulRatio(taxableLandValue, assertBps(holding.residentialShareBps, `holding ${holding.id} residentialShareBps`), 10_000);
+    return holding.residential === true ? taxableLandValue : 0;
+  }
   if (state !== "NSW") return taxableLandValue;
   if (holding.residential === false) return 0;
   if (holding.residentialShareBps !== undefined) return mulRatio(taxableLandValue, assertBps(holding.residentialShareBps, `holding ${holding.id} residentialShareBps`), 10_000);
@@ -472,6 +488,58 @@ const SA_TRUST_SCHEDULES: readonly Effective<LandTaxSchedule>[] = [
 /** RevenueSA issues no assessment when the calculated tax is under A$20. */
 const SA_MINIMUM_ASSESSMENT = 2_000;
 
+const TAS_GENERAL_SCHEDULES: readonly Effective<LandTaxSchedule>[] = [
+  {
+    from: "2025-07-01",
+    value: {
+      ruleVersion: "tas.land-tax.general.2025-07-01",
+      threshold: 12_500_000,
+      bands: [
+        { from: 0, to: 12_499_999, baseTax: 0, excessFrom: 0, rateBps: 0, label: "Below threshold" },
+        { from: 12_500_000, to: 49_999_999, baseTax: 5_000, excessFrom: 12_500_000, rateBps: 45, label: "A$125,000 to A$499,999.99" },
+        { from: 50_000_000, baseTax: 173_750, excessFrom: 50_000_000, rateBps: 150, label: "A$500,000 and above" },
+      ],
+    },
+  },
+];
+
+const TAS_FOREIGN_SURCHARGE_RULES: readonly Effective<SurchargeRule>[] = [
+  { from: "2025-07-01", value: { ruleVersion: "tas.land-tax.foreign.2025-07-01", state: "TAS", appliesTo: "RESIDENTIAL_ONLY", rateBps: 200 } },
+];
+
+// The valuation rates are the same in 2025-26 (DI2025-153) and 2026-27; only the fixed charge changed.
+const ACT_VALUATION_BANDS: readonly TaxBand[] = [
+  { from: 0, to: 15_000_000, baseTax: 0, excessFrom: 0, rateBps: 54, label: "AUV up to A$150,000" },
+  { from: 15_000_001, to: 27_500_000, baseTax: 81_000, excessFrom: 15_000_000, rateBps: 64, label: "AUV A$150,001 to A$275,000" },
+  { from: 27_500_001, to: 100_000_000, baseTax: 161_000, excessFrom: 27_500_000, rateBps: 124, label: "AUV A$275,001 to A$1,000,000" },
+  { from: 100_000_001, to: 200_000_000, baseTax: 1_060_000, excessFrom: 100_000_000, rateBps: 125, label: "AUV A$1,000,001 to A$2,000,000" },
+  { from: 200_000_001, baseTax: 2_310_000, excessFrom: 200_000_000, rateBps: 126, label: "AUV A$2,000,001 and higher" },
+];
+
+const ACT_RESIDENTIAL_LAND_TAX_SCHEDULES: readonly Effective<ActLandTaxSchedule>[] = [
+  {
+    from: "2026-07-01",
+    value: {
+      ruleVersion: "act.land-tax.residential.2026-07-01",
+      fixedCharge: 177_800,
+      valuationSchedule: { ruleVersion: "act.land-tax.valuation.2026-07-01", threshold: 0, bands: ACT_VALUATION_BANDS },
+    },
+  },
+  {
+    from: "2025-07-01",
+    to: "2026-06-30",
+    value: {
+      ruleVersion: "act.land-tax.residential.2025-07-01",
+      fixedCharge: 169_300,
+      valuationSchedule: { ruleVersion: "act.land-tax.valuation.2025-07-01", threshold: 0, bands: ACT_VALUATION_BANDS },
+    },
+  },
+];
+
+const ACT_FOREIGN_SURCHARGE_RULES: readonly Effective<SurchargeRule>[] = [
+  { from: "2018-07-01", value: { ruleVersion: "act.land-tax.foreign.2018-07-01", state: "ACT", appliesTo: "RESIDENTIAL_ONLY", rateBps: 75 } },
+];
+
 function nswSchedule(owner: AuLandTaxOwner, yearDate: ISODate): LandTaxSchedule {
   if (owner.kind === "SPECIAL_TRUST") return requireEffective(NSW_SPECIAL_TRUST_SCHEDULES, yearDate, "NSW special trust land tax");
   return requireEffective(NSW_GENERAL_SCHEDULES, yearDate, "NSW land tax");
@@ -516,6 +584,10 @@ function computeGeneralTax(state: AuState, owner: AuLandTaxOwner, totalTaxableLa
     const schedule = saOwnerSchedule(owner, yearDate);
     return { tax: computeScheduledTax(schedule, totalTaxableLandValue).tax, schedule };
   }
+  if (state === "TAS") {
+    const schedule = requireEffective(TAS_GENERAL_SCHEDULES, yearDate, "Tasmanian land tax");
+    return { tax: computeScheduledTax(schedule, totalTaxableLandValue).tax, schedule };
+  }
   throw new RangeError(`Land tax is not modelled for ${state}.`);
 }
 
@@ -547,10 +619,103 @@ function computeSurchargeTax(state: AuState, owner: AuLandTaxOwner, totalTaxable
     if (totalSurchargeableValue <= rule.threshold!) return { tax: 0, ruleVersion: rule.ruleVersion };
     return { tax: mulBps(totalSurchargeableValue - rule.threshold!, rule.rateBps), ruleVersion: rule.ruleVersion };
   }
+  if (state === "TAS" && owner.foreign) {
+    const rule = requireEffective(TAS_FOREIGN_SURCHARGE_RULES, yearDate, "Tasmanian foreign investor land tax surcharge");
+    return { tax: mulBps(totalSurchargeableValue, rule.rateBps), ruleVersion: rule.ruleVersion };
+  }
   return { tax: 0 };
 }
 
-const MODELLED_STATES: readonly AuState[] = ["NSW", "VIC", "QLD", "WA", "SA"];
+const MODELLED_STATES: readonly AuState[] = ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"];
+
+function computeNilLandTax(input: ComputeLandTaxInput, assessmentYear: number, holdings: readonly { id: string; taxableLandValue: Cents; surchargeableValue: Cents }[]): ComputeLandTaxResult {
+  const totalValue = holdings.reduce((sum, holding) => sum + holding.taxableLandValue, 0);
+  return {
+    state: input.state,
+    assessmentYear,
+    totalTaxableLandValue: totalValue,
+    totalSurchargeableValue: 0,
+    generalTax: 0,
+    surchargeTax: 0,
+    totalTax: 0,
+    properties: holdings.map((holding) => ({
+      id: holding.id,
+      taxableLandValue: holding.taxableLandValue,
+      surchargeableValue: 0,
+      apportionedGeneralTax: 0,
+      apportionedSurchargeTax: 0,
+      totalTax: 0,
+    })),
+    lines: [
+      line("AU.LAND_TAX.TAXABLE_VALUE", "Land value reviewed", totalValue),
+      line("AU.LAND_TAX.TOTAL", "Total land tax", 0, "nt.land-tax.nil.current"),
+    ],
+    findings: [{
+      id: "AU_LAND_TAX.NT_NOT_LEVIED",
+      severity: "INFO",
+      message: "Northern Territory land tax is a cited nil: the Territory Revenue Office does not levy annual land tax.",
+    }],
+    notes: [ENGINE_DISCLAIMER_AU, "The Northern Territory does not levy annual land tax; property values are shown for context only and no liability is included in totals."],
+    ruleVersion: "nt.land-tax.nil.current",
+  };
+}
+
+function computeActLandTax(input: ComputeLandTaxInput, assessmentYear: number, holdings: readonly { id: string; taxableLandValue: Cents; surchargeableValue: Cents }[], yearDate: ISODate): ComputeLandTaxResult {
+  const schedule = requireEffective(ACT_RESIDENTIAL_LAND_TAX_SCHEDULES, yearDate, "ACT land tax");
+  const surchargeRule = input.owner.foreign ? requireEffective(ACT_FOREIGN_SURCHARGE_RULES, yearDate, "ACT foreign ownership surcharge") : undefined;
+  const properties = holdings.map((holding) => {
+    if (holding.surchargeableValue === 0) {
+      return { id: holding.id, taxableLandValue: 0, surchargeableValue: 0, apportionedGeneralTax: 0, apportionedSurchargeTax: 0, totalTax: 0 };
+    }
+    const valuation = computeScheduledTax(schedule.valuationSchedule, holding.surchargeableValue).tax;
+    const general = schedule.fixedCharge + valuation;
+    const surcharge = surchargeRule ? mulBps(holding.surchargeableValue, surchargeRule.rateBps) : 0;
+    return {
+      id: holding.id,
+      taxableLandValue: holding.surchargeableValue,
+      surchargeableValue: holding.surchargeableValue,
+      apportionedGeneralTax: general,
+      apportionedSurchargeTax: surcharge,
+      totalTax: general + surcharge,
+    };
+  });
+  const totalTaxableLandValue = properties.reduce((sum, property) => sum + property.taxableLandValue, 0);
+  const generalTax = properties.reduce((sum, property) => sum + property.apportionedGeneralTax, 0);
+  const surchargeTax = properties.reduce((sum, property) => sum + property.apportionedSurchargeTax, 0);
+  const findings: Finding[] = [];
+  if (totalTaxableLandValue === 0) {
+    findings.push({
+      id: "AU_LAND_TAX.ACT_COMMERCIAL_LAND_NIL",
+      severity: "INFO",
+      message: "ACT land tax is a cited nil for these holdings because land tax does not apply to commercial properties.",
+    });
+  }
+  const ruleVersion = surchargeRule ? `${schedule.ruleVersion}+${surchargeRule.ruleVersion}` : schedule.ruleVersion;
+  return {
+    state: input.state,
+    assessmentYear,
+    totalTaxableLandValue,
+    totalSurchargeableValue: totalTaxableLandValue,
+    generalTax,
+    surchargeTax,
+    totalTax: generalTax + surchargeTax,
+    properties,
+    lines: [
+      line("AU.LAND_TAX.TAXABLE_VALUE", "ACT residential AUV subject to land tax", totalTaxableLandValue),
+      line("AU.LAND_TAX.GENERAL", "ACT land tax", generalTax, schedule.ruleVersion),
+      ...(surchargeTax > 0 ? [line("AU.LAND_TAX.SURCHARGE", "ACT foreign ownership surcharge", surchargeTax, surchargeRule!.ruleVersion)] : []),
+      line("AU.LAND_TAX.TOTAL", "Total land tax", generalTax + surchargeTax),
+    ],
+    findings,
+    notes: [
+      ENGINE_DISCLAIMER_AU,
+      "ACT land tax is assessed quarterly on residential properties that are not a principal place of residence, including rented or vacant properties and properties owned by a corporation or trustee.",
+      "ACT land tax does not apply to commercial properties; holdings not marked as residential are treated as cited nil for land tax.",
+      "The annualised calculation uses the ACT Revenue Office fixed charge plus valuation charge; quarterly day-count apportionment is not modelled.",
+    ],
+    ruleVersion,
+  };
+}
 
 export function computeLandTax(input: ComputeLandTaxInput): ComputeLandTaxResult {
   if (!MODELLED_STATES.includes(input.state)) throw new RangeError(`Land tax is not modelled for ${input.state}.`);
@@ -565,6 +730,8 @@ export function computeLandTax(input: ComputeLandTaxInput): ComputeLandTaxResult
   }));
   const totalTaxableLandValue = holdings.reduce((sum, holding) => sum + holding.taxableLandValue, 0);
   const totalSurchargeableValue = holdings.reduce((sum, holding) => sum + holding.surchargeableValue, 0);
+  if (input.state === "NT") return computeNilLandTax(input, assessmentYear, holdings);
+  if (input.state === "ACT") return computeActLandTax(input, assessmentYear, holdings, yearDate);
   const scheduled = computeGeneralTax(input.state, input.owner, totalTaxableLandValue, yearDate);
   const underMinimum = input.state === "SA" && scheduled.tax > 0 && scheduled.tax < SA_MINIMUM_ASSESSMENT;
   if (underMinimum) {
@@ -610,6 +777,12 @@ export function computeLandTax(input: ComputeLandTaxInput): ComputeLandTaxResult
     notes.push(
       "South Australian land tax is assessed on land owned at midnight on 30 June. Trust rates apply to land held on trust unless the trust is assessed at the general rates (for example a listed or widely held public unit trust scheme, or a fixed or unit trust whose beneficiaries or unitholders RevenueSA has been told about).",
       "Each A$100 or part of A$100 above a step is charged in full, as RevenueSA's tables state.",
+    );
+  }
+  if (input.state === "TAS") {
+    notes.push(
+      "Tasmanian land tax is calculated on aggregated assessed land value for each land classification. This investor-focused calculator applies the General Land scale from 1 July 2025.",
+      "Tasmania's foreign investor land tax surcharge is 2% of foreign-owned General Land acquired on or after 1 July 2022; use the residential flag or explicit surchargeable value for the surchargeable portion.",
     );
   }
   const lines = [
@@ -744,7 +917,7 @@ export const RULES: RuleEntry[] = [
     sources: [
       { title: "WA Department of Treasury and Finance | Land tax assessment (MRIT rates)", url: "https://www.wa.gov.au/organisation/department-of-treasury-and-finance/land-tax-assessment", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Western Australia" },
     ],
-    notes: "Holdings are treated as metropolitan unless the caller marks them otherwise; the app does not hold a metropolitan-region flag per property, so a WA property outside the region is overstated by the MRIT.",
+    notes: "Holdings are treated as metropolitan unless the caller marks them otherwise. Each WA property profile in the app has an In Perth metropolitan region flag; profiles saved before the flag existed count as metropolitan, so check the flag for any WA property outside the region.",
   },
   {
     id: "au-land-tax.sa.general",
@@ -771,5 +944,90 @@ export const RULES: RuleEntry[] = [
       { title: "RevenueSA | Land held on trust", url: "https://revenuesa.sa.gov.au/landtax/land-held-on-trust", retrieved: "2026-10-19", publisher: "RevenueSA" },
     ],
     notes: "Whether a trust is assessed at the general rates depends on notifications to RevenueSA; the app's Trust surcharge applies setting stands in for that decision.",
+  },
+  {
+    id: "au-land-tax.tas.general.2025-07-01",
+    domain: "AU_LAND_TAX",
+    title: "Tasmania land tax general rates",
+    summary: "Tasmanian land tax on General Land is nil below A$125,000 from 1 July 2025, then A$50 plus 0.45% above A$125,000, and A$1,737.50 plus 1.5% above A$500,000.",
+    effectiveFrom: "2025-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "State Revenue Office Tasmania | Rates of land tax", url: "https://www.sro.tas.gov.au/land-tax/rates-of-land-tax", retrieved: "2026-10-19", publisher: "State Revenue Office Tasmania" },
+    ],
+    notes: "The engine applies the General Land scale and aggregates holdings by owner. Principal residence, primary-production and exempt-land classifications are out of scope.",
+  },
+  {
+    id: "au-land-tax.tas.foreign.2025-07-01",
+    domain: "AU_LAND_TAX",
+    title: "Tasmania foreign investor land tax surcharge",
+    summary: "Tasmania charges FILTS at 2% of the assessed land value of the foreign-owned portion of General Land acquired on or after 1 July 2022, in addition to ordinary land tax and even below the ordinary land-tax threshold.",
+    effectiveFrom: "2025-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "State Revenue Office Tasmania | Rate of surcharge", url: "https://www.sro.tas.gov.au/land-tax/foreign-investor-land-tax-surcharge/rate-of-surcharge", retrieved: "2026-10-19", publisher: "State Revenue Office Tasmania" },
+    ],
+    notes: "The current ordinary land-tax table is effective from 1 July 2025; the surcharge source states the underlying FILTS liability applies to relevant property acquired on or after 1 July 2022.",
+  },
+  {
+    id: "au-land-tax.act.residential.2026-07-01",
+    domain: "AU_LAND_TAX",
+    title: "ACT land tax on residential property (2026-27)",
+    summary: "ACT land tax applies to residential properties that are not a principal place of residence, including rented or vacant properties and properties owned by a corporation or trustee. From 1 July 2026 the annual fixed charge is A$1,778 plus valuation rates from 0.54% to 1.26% of AUV.",
+    effectiveFrom: "2026-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "ACT Revenue Office | About land tax", url: "https://www.revenue.act.gov.au/rates-and-property-charges/land-tax/about-land-tax", retrieved: "2026-10-19", publisher: "ACT Revenue Office" },
+      { title: "ACT Revenue Office | How land tax is calculated", url: "https://www.revenue.act.gov.au/rates-and-property-charges/land-tax/how-land-tax-is-calculated", retrieved: "2026-10-19", publisher: "ACT Revenue Office" },
+    ],
+    notes: "The engine annualises the 2026-27 fixed charge and valuation schedule (land-tax year 2027 in this app) and does not reproduce quarterly day-count percentages.",
+  },
+  {
+    id: "au-land-tax.act.residential.2025-07-01",
+    domain: "AU_LAND_TAX",
+    title: "ACT land tax on residential property (2025-26)",
+    summary: "For 2025-26 the ACT land tax fixed charge is A$1,693 and the valuation rates run from 0.54% to 1.26% of AUV, the same rates as 2026-27. The foreign ownership surcharge stays at 0.75% of AUV.",
+    effectiveFrom: "2025-07-01",
+    effectiveTo: "2026-06-30",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "Taxation Administration (Amounts Payable—Land Tax) Determination 2025 (DI2025-153)", url: "https://www.legislation.act.gov.au/di/2025-153/", retrieved: "2026-10-19", publisher: "ACT Legislation Register" },
+    ],
+    notes: "The determination commenced on 1 July 2025 (land-tax year 2026 in this app). The engine annualises the charge and does not reproduce quarterly day-count percentages.",
+  },
+  {
+    id: "au-land-tax.act.foreign.2018-07-01",
+    domain: "AU_LAND_TAX",
+    title: "ACT foreign ownership surcharge for land tax",
+    summary: "Foreign persons who own residential land in the ACT pay a land tax surcharge of 0.75% of the Average Unimproved Value per year from 1 July 2018, in addition to land tax.",
+    effectiveFrom: "2018-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "ACT Revenue Office | Foreign ownership surcharge for land tax", url: "https://www.revenue.act.gov.au/rates-and-property-charges/land-tax/foreign-ownership-surcharge-for-land-tax", retrieved: "2026-10-19", publisher: "ACT Revenue Office" },
+    ],
+  },
+  {
+    id: "au-land-tax.act.commercial.nil",
+    domain: "AU_LAND_TAX",
+    title: "ACT land tax does not apply to commercial properties",
+    summary: "The ACT Revenue Office says land tax does not apply to commercial properties. The engine returns a cited nil for ACT holdings not marked as residential.",
+    effectiveFrom: "2025-07-01",
+    confidence: "VERIFIED",
+    sources: [
+      { title: "ACT Revenue Office | About land tax", url: "https://www.revenue.act.gov.au/rates-and-property-charges/land-tax/about-land-tax", retrieved: "2026-10-19", publisher: "ACT Revenue Office" },
+    ],
+  },
+  {
+    id: "au-land-tax.nt.nil",
+    domain: "AU_LAND_TAX",
+    title: "Northern Territory has no annual land tax",
+    summary: "The Northern Territory Revenue Office publishes stamp duty and other Territory taxes, but no annual land tax regime; the engine returns a cited nil for NT land tax.",
+    effectiveFrom: "2022-07-01",
+    confidence: "VERIFIED_SECONDARY",
+    sources: [
+      { title: "NT Department of Treasury and Finance | Stamp duty", url: "https://treasury.nt.gov.au/dtf/territory-revenue-office/stamp-duty", retrieved: "2026-10-19", publisher: "Department of Treasury and Finance, Northern Territory" },
+      { title: "Northern Territory Government | Examples of duty and rates", url: "https://nt.gov.au/employ/money-and-taxes/taxes-royalties-and-grants/stamp-duty/examples-of-duty-and-rates", retrieved: "2026-10-19", publisher: "Northern Territory Government" },
+    ],
+    notes: "This is a cited nil by official-scope exclusion: the Territory Revenue Office property-tax material covers stamp duty, not annual land tax. No NT land-tax legislation or rate table is published by the Territory Revenue Office.",
   },
 ];

@@ -126,12 +126,19 @@ function diffDays(a: ISODate, b: ISODate): number {
   return Math.max(0, Math.floor((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000));
 }
 
+/** Most completed months the additional 1% penalty runs for: IRAS caps the additional penalty at 15% of the unpaid tax. */
+const MAX_ADDITIONAL_PENALTY_MONTHS = 15;
+
 function computeLatePenalty(tax: Cents, dueDate: ISODate, remittedDate: ISODate): LatePenaltyBreakdown | null {
   if (compareISO(remittedDate, dueDate) <= 0 || tax <= 0) return null;
   const lateDays = diffDays(dueDate, remittedDate);
   const basePenalty = mulBps(tax, 500);
-  const monthsAfterThirty = Math.ceil(Math.max(0, lateDays - 30) / 30);
-  const monthlyPenalty = mulBps(tax, Math.min(monthsAfterThirty, 10) * 100);
+  // IRAS: if the tax is still unpaid 30 days after the due date, an additional 1% for every completed calendar month it remains unpaid
+  // (IRAS example: due 15 Jul 2025, paid 25 Oct 2025, two completed months from 14 Aug 2025).
+  const additionalFrom = addDays(dueDate, 30);
+  let completedMonths = 0;
+  while (completedMonths < MAX_ADDITIONAL_PENALTY_MONTHS && compareISO(addMonths(additionalFrom, completedMonths + 1), remittedDate) <= 0) completedMonths += 1;
+  const monthlyPenalty = mulBps(tax, completedMonths * 100);
   return { dueDate, lateDays, basePenalty, monthlyPenalty, totalPenalty: basePenalty + monthlyPenalty };
 }
 
@@ -246,10 +253,11 @@ export const RULES: RuleEntry[] = [
     id: "withholding-tax.penalty.current",
     domain: "WITHHOLDING_TAX",
     title: "Late-payment penalties for WHT",
-    summary: "IRAS imposes a 5% late-payment penalty and, if the tax remains unpaid after 30 days, an additional 1% per completed month up to 15% in total.",
+    summary: "IRAS imposes a 5% late-payment penalty and, if the tax is still unpaid 30 days after the due date, an additional 1% for every completed month it remains unpaid, the additional penalty capped at 15% of the unpaid tax (so at most 20% in all).",
     effectiveFrom: "2022-01-01",
     confidence: "VERIFIED",
-    sources: [{ title: "IRAS | Late payment and non-payment of taxes", url: "https://www.iras.gov.sg/taxes/withholding-tax/withholding-tax-payments/late-payment-and-non-payment-of-taxes", retrieved: "2026-10-09", publisher: "IRAS" }],
+    notes: "The engine counts completed calendar months from 30 days after the due date, as in IRAS's worked example, and treats the 5% penalty as imposed at the due date. The Act counts from the imposition of the 5% penalty, which can be later; check the penalty notice.",
+    sources: [{ title: "IRAS | Late payment and non-payment of taxes (worked example: S$7,000 due 15 Jul 2025, paid 25 Oct 2025, penalty S$490)", url: "https://www.iras.gov.sg/taxes/withholding-tax/withholding-tax-payments/late-payment-and-non-payment-of-taxes", retrieved: "2026-10-19", publisher: "IRAS" }],
   },
   {
     id: "withholding-tax.treaty.override",

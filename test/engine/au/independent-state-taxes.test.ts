@@ -660,37 +660,37 @@ test("QLD landholder duty and AFAD match QRO worked examples", () => {
   assert.equal(publicAfad.totalDuty, 154_805_250);
 });
 
-test("NOT_MODELLED states are excluded from modelled catalogues and throw clear errors", () => {
+test("all Australian jurisdictions are included in the modelled transfer-duty and land-tax catalogues", () => {
   assert.deepEqual(
     AU_MODELLED_TRANSFER_DUTY_STATES.map((item) => item.id),
-    ["NSW", "VIC", "QLD", "WA", "SA"],
+    ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"],
   );
   assert.deepEqual(
     AU_MODELLED_LAND_TAX_STATES.map((item) => item.id),
-    ["NSW", "VIC", "QLD", "WA", "SA"],
+    ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"],
   );
 
   const notModelled = AU_STATE_TAX_CATALOGUE.filter((entry) => entry.transferDutyCoverage === "NOT_MODELLED").map((entry) => entry.state);
-  assert.deepEqual(notModelled, ["TAS", "ACT", "NT"]);
+  assert.deepEqual(notModelled, []);
 
-  assert.throws(
-    () => computeTransferDuty({
+  assert.equal(
+    computeTransferDuty({
       state: "TAS",
       contractDate: "2026-10-10",
       dutiableValue: 1_000_000_00,
       propertyKind: "RESIDENTIAL",
       purchaser: { kind: "INDIVIDUAL" },
-    }),
-    /Transfer duty is not modelled for TAS/,
+    }).baseDuty,
+    4_018_500,
   );
 
-  assert.throws(
-    () => computeLandTax({
+  assert.equal(
+    computeLandTax({
       state: "TAS",
       assessmentYear: 2026,
-      holdings: [{ id: "a", taxableLandValue: 1_000_000_00 }],
+      holdings: [{ id: "a", taxableLandValue: 1_000_000_00, residential: true }],
       owner: { kind: "INDIVIDUAL" },
-    }),
-    /Land tax is not modelled for TAS/,
+    }).generalTax,
+    923_750,
   );
 });

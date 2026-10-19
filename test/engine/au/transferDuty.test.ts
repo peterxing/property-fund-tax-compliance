@@ -18,7 +18,7 @@ test("AU transfer-duty catalogues are exhaustive for the modelled module", () =>
   assert.deepEqual(AU_LANDHOLDER_KINDS.map((entry) => entry.id), ["PRIVATE_COMPANY", "PRIVATE_UNIT_TRUST", "WHOLESALE_UNIT_TRUST", "PUBLIC_LANDHOLDER"]);
   assert.deepEqual(
     AU_STATE_TAX_CATALOGUE.filter((entry) => entry.transferDutyCoverage === "FULL").map((entry) => entry.state),
-    ["VIC", "QLD"],
+    ["VIC", "QLD", "ACT", "NT"],
   );
 });
 
