@@ -29,12 +29,12 @@ This folder documents every tax calculation in Property Fund Tax Compliance, so 
 | [Australian company tax, trust tax and income-tax lodgment dates](au-income-tax.md) | Australia | 3 | 4 |
 | [Singapore S-REIT distributions](sg-reit-distributions.md) | Singapore | 5 | 4 |
 | [Singapore property tax](sg-property-tax.md) | Singapore | 4 | 4 |
-| [Singapore stamp duty](sg-stamp-duty.md) | Singapore | 5 | 7 |
+| [Singapore stamp duty](sg-stamp-duty.md) | Singapore | 5 | 8 |
 | [Singapore capital allowances and section 14N](sg-capital-allowances.md) | Singapore | 4 | 3 |
 | [Singapore corporate income tax and badges of trade](sg-income-tax.md) | Singapore | 5 | 3 |
 | [Singapore non-resident withholding tax](sg-withholding-tax.md) | Singapore | 4 | 3 |
 | [Singapore GST, F5 returns and IRAS Audit File](sg-gst.md) | Singapore | 5 | 7 |
-| **All** | | **63** | **86** |
+| **All** | | **63** | **87** |
 
 ### Confidence by calculation
 

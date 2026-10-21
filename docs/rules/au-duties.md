@@ -321,7 +321,7 @@ For a SA private unit trust with **A$850,000.00** residential land and a **75%**
 
 ### Evidence
 
-`test/engine/au/independent-state-taxes.test.ts` has independent NSW, VIC and QLD landholder tests. `test/engine/au/wa-sa-landholder-and-surcharges.test.ts` covers WA listed/unlisted thresholds, SA landholder examples and SA foreign surcharge. `test/verify/state-taxes/territories-verifier.test.ts` includes WA/SA verifier cases. This document's test recomputes all five landholder examples.
+`test/engine/au/independent-state-taxes.test.ts` has independent NSW, VIC and QLD landholder tests. `test/engine/au/wa-sa-landholder-and-surcharges.test.ts` covers WA listed/unlisted thresholds, SA landholder examples and SA foreign surcharge. `test/engine/au/landholder-thresholds.test.ts` pins the NSW A$2m, Victorian A$1m (with the s 89 phase-in) and Queensland A$2m landholder-value tests, the Queensland trust-acquisition path (including the QRO Christine example) and the Queensland wholesale-unit-trust refusal. `test/verify/state-taxes/territories-verifier.test.ts` includes WA/SA verifier cases. This document's test recomputes all seven landholder examples.
 
 ### Confidence
 

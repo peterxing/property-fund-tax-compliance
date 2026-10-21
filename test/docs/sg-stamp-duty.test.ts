@@ -23,7 +23,7 @@ function absdRate(date: string, kind: "SC" | "SPR" | "FOREIGNER" | "ENTITY" | "H
 }
 
 test("sg stamp duty document covers exactly the tested examples", () => {
-  assert.deepEqual(exampleIds(readRuleDoc(DOC)), ["BSD-1", "BSD-2", "ABSD-1", "ABSD-2", "SSD-1", "SSD-2", "LEASE-1"]);
+  assert.deepEqual(exampleIds(readRuleDoc(DOC)), ["BSD-1", "BSD-2", "ABSD-1", "ABSD-2", "SSD-1", "SSD-2", "LEASE-1", "LEASE-2"]);
 });
 
 test("BSD rate table is rendered from computeBsd band breakdowns", () => {
@@ -97,7 +97,13 @@ test("SSD, lease and deadline examples are recomputed and quoted", () => {
   const lease = computeLeaseDuty({ leaseDate: "2026-10-09", leaseStartDate: "2026-10-09", leaseEndDate: "2028-10-08", rentSteps: [{ from: "2026-10-09", to: "2028-10-08", rent: D(100_000), frequency: "MONTHLY" }] });
   assert.equal(lease.totalRent, D(2_400_000));
   assert.equal(lease.duty, D(9_600));
-  assertExampleQuotes(DOC, "LEASE-1", ["24 monthly rent periods", money(lease.totalRent, "SGD", 2), money(lease.averageAnnualRent, "SGD", 2), money(lease.duty, "SGD", 2)]);
+  assertExampleQuotes(DOC, "LEASE-1", ["24 monthly rent periods", "2 years", money(lease.totalRent, "SGD", 2), money(lease.averageAnnualRent, "SGD", 2), money(lease.duty, "SGD", 2)]);
+
+  const longLease = computeLeaseDuty({ leaseDate: "2026-10-09", leaseStartDate: "2026-10-09", leaseEndDate: "2032-10-08", rentSteps: [{ from: "2026-10-09", to: "2032-10-08", rent: D(100_000), frequency: "MONTHLY" }] });
+  assert.equal(longLease.totalRent, D(7_200_000));
+  assert.equal(longLease.averageAnnualRent, D(1_200_000));
+  assert.equal(longLease.duty, D(19_200));
+  assertExampleQuotes(DOC, "LEASE-2", ["72 monthly rent periods", money(longLease.totalRent, "SGD", 2), money(longLease.averageAnnualRent, "SGD", 2), money(longLease.averageAnnualRent * 4, "SGD", 2), money(longLease.duty, "SGD", 2)]);
 
   assert.equal(stampDutyDeadline({ executionDate: "2026-10-09", executedInSingapore: true }).dueDate, "2026-10-23");
   assert.equal(stampDutyDeadline({ executionDate: "2026-10-09", executedInSingapore: false, firstReceivedInSingaporeDate: "2026-10-20" }).dueDate, "2026-11-19");

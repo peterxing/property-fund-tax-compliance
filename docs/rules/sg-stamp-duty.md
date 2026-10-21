@@ -244,7 +244,17 @@ The rule entry cites IRAS Renting a Property. See [lease duty](RULE-REGISTER.md#
 | Lease end date | 2028-10-08 |
 | Monthly rent | S$100,000.00 |
 
-The engine counts 24 monthly rent periods. Total rent is S$2,400,000.00. Average annual rent is S$1,200,000.00. Because the lease term is not more than four years, rent duty is 0.4% x S$2,400,000.00 = S$9,600.00. There is no premium, so total lease duty is S$9,600.00.
+The engine counts 24 monthly rent periods, counted from the lease start date so a month-end start date does not drift. Total rent is S$2,400,000.00. The lease term is 24 whole calendar months from the start date / 12 = 2 years exactly, so there is no leap-day distortion. Average annual rent is S$1,200,000.00. Because the lease term is not more than four years, rent duty is 0.4% x S$2,400,000.00 = S$9,600.00. There is no premium, so total lease duty is S$9,600.00.
+
+#### Example LEASE-2: Six-year monthly-rent lease (term over four years)
+
+| Input | Value |
+| --- | --- |
+| Lease date and start date | 2026-10-09 |
+| Lease end date | 2032-10-08 |
+| Monthly rent | S$100,000.00 |
+
+The engine counts 72 monthly rent periods, a lease term of 72 / 12 = 6 whole calendar years. Total rent is S$7,200,000.00. Average annual rent is S$1,200,000.00 (total rent / 6 years). Because the lease term is more than four years, rent duty is 0.4% x (4 x S$1,200,000.00) = 0.4% x S$4,800,000.00 = S$19,200.00. There is no premium, so total lease duty is S$19,200.00.
 
 ### Edge cases
 
